@@ -14,7 +14,13 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "FixedCamera.h"
-
+#include "Components/PostProcessComponent.h"
+#include "MyPostProcessVolume.h"
+#include "CameraShakeComponent.h"
+#include "EnemyCharacter.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "EngineUtils.h"
+#include "Blueprint/UserWidget.h"
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -86,6 +92,15 @@ void AOnDirt2Character::BeginPlay()
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
+	}
+
+	if (PauseMenuClass)
+	{
+		PauseMenu = CreateWidget<UUserWidget>(GetWorld(), PauseMenuClass);
+	}
+	if (OptionsMenuClass) {
+
+		OptionsMenu = CreateWidget<UUserWidget>(GetWorld(), OptionsMenuClass);
 	}
 
 	GetCharacterMovement()->MaxAcceleration = 600.f; // Ajusta según la suavidad deseada
@@ -254,6 +269,7 @@ void AOnDirt2Character::ExecuteThrow() {
 
 	//Direccion del personaje
 // Obtener la dirección en la que el personaje está mirando
+	HeldObject->bIsRealising = false;
 	FVector CharacterForward = GetActorForwardVector();
 	FVector CharacterUp = GetActorUpVector();
 	FVector ImpulseDirection = CharacterForward + (CharacterUp * 0.5f); // Ajusta la dirección si es necesario
@@ -296,7 +312,7 @@ void  AOnDirt2Character::Aiming() {
 
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->DisableMovement();
-	UE_LOG(LogTemp, Warning, TEXT("Apuntando"));
+	//UE_LOG(LogTemp, Warning, TEXT("Apuntando"));
 
 	// Direccion del personaje
 	FVector CharacterForward = GetActorForwardVector();
@@ -369,6 +385,7 @@ void AOnDirt2Character::GrabThrowOBJ()
 		OverlappingThrowOBJ->SetActorEnableCollision(false);
 		OverlappingThrowOBJ = nullptr;
 		bIsPickUp = true;
+		
 	
 		
 	}
@@ -387,6 +404,7 @@ void AOnDirt2Character::DropOBJ() {
 	if (HeldObject) // Asegúrate de que hay un objeto sostenido
 	{
 		// Soltar el objeto
+		HeldObject->bIsRealising = true;
 		HeldObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
 		// Reactivar físicas y colisión
@@ -406,6 +424,108 @@ void AOnDirt2Character::DropOBJ() {
 
 
 }
+
+void AOnDirt2Character::GetDamage() {
+
+
+
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (PlayerController && PlayerController->PlayerCameraManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Shaking making"));
+		PlayerController->PlayerCameraManager->StartCameraShake(UCameraShakeComponent::StaticClass());
+	}
+
+	bIsHit = true;
+	/*if (!Life == 0) {
+
+		Life = Life - 50;
+		UE_LOG(LogTemp, Warning, TEXT("Tienes vida"));
+		bIsHit = true;
+
+	}
+	else {
+
+		bIsDie = true;
+
+		//bIsCallEnemy = true;
+
+		for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
+		{
+			AEnemyCharacter* Enemy = *It;
+			if (Enemy && Enemy->GetController())
+			{
+				UBlackboardComponent* BlackboardComp = Enemy->GetController()->FindComponentByClass<UBlackboardComponent>();
+
+				if (BlackboardComp)
+				{
+					BlackboardComp->SetValueAsBool(TEXT("isDead"), true);
+				}
+			}
+		}
+
+		TArray<AActor*> PostProcessVolumes;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), APostProcessVolume::StaticClass(), PostProcessVolumes);
+
+		for (AActor* Actor : PostProcessVolumes)
+		{
+			APostProcessVolume* PostProcessVolume = Cast<APostProcessVolume>(Actor);
+			if (PostProcessVolume)
+			{
+				// Obtén el perfil de post-procesado actual
+				FPostProcessSettings& PostProcessSettings = PostProcessVolume->Settings;
+
+				// Modifica el efecto de ruido
+				PostProcessSettings.FilmGrainIntensity = 2.f;
+				UE_LOG(LogTemp, Warning, TEXT("CAMBIA FILTROOO"));
+
+				// Aquí puedes ajustar la configuración del ruido según sea necesario
+				// Por ejemplo:
+				// PostProcessSettings.GrainIntensity = 0.5f;
+			}
+		}
+
+
+
+
+
+		GetCharacterMovement()->DisableMovement();
+		UE_LOG(LogTemp, Warning, TEXT("You're Dead"));
+
+
+	}*/
+
+}
+
+void AOnDirt2Character::SetLastCheckpointLocation(FVector NewLocation)
+{
+	LastCheckpointLocation = NewLocation;
+}
+
+
+void AOnDirt2Character::Die()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Character Died"));
+	Respawn();
+}
+
+void AOnDirt2Character::Respawn()
+{
+	AController* LocalController = GetController();
+	if (LocalController)
+	{
+		// Respawn the character at the last checkpoint location
+		SetActorLocation(LastCheckpointLocation);
+
+		// Optionally, reset other necessary attributes like health, inventory, etc.
+		// Example: Reset health
+		// Health = MaxHealth;
+
+		// Possess the character again
+		Controller->Possess(this);
+	}
+}
+
 
 void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 {

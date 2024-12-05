@@ -59,12 +59,16 @@ class AOnDirt2Character : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* ThrowAction;
 
-
 	UPROPERTY(EditDefaultsOnly, Category = "Grab")
 	FName HandSocketName = "HandSocket";
 
+
+
 public:
 	AOnDirt2Character();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Checkpoint")
+	FVector LastCheckpointLocation;
 	
 
 protected:
@@ -100,7 +104,22 @@ public:
 	void GrabThrowOBJ();
 	void PickUpHandle();
 	void DropOBJ();
+	
+	
+	//CheckPoint
 
+	UFUNCTION()
+	void SetLastCheckpointLocation(FVector NewLocation);
+
+	UFUNCTION()
+	void Respawn();
+
+
+	//Damage
+	UFUNCTION()
+	void Die();
+
+	void GetDamage();
 
 	//Animations
 	UFUNCTION(BlueprintCallable, Category = "Animation")
@@ -136,6 +155,20 @@ public:
 	bool GetIsDie() const;
 
 
+	//Widgets
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> PauseMenuClass;
+
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> OptionsMenuClass;
+
+	UPROPERTY()
+	UUserWidget* PauseMenu;
+	UPROPERTY()
+	UUserWidget* OptionsMenu;
+
+
 private:
 	void Sprinting();
 	void Crouching();
@@ -143,6 +176,10 @@ private:
 	void StopAiming();
 	void ThrowOBJ();
 	void ExecuteThrow();
+
+
+
+	//Overlap
 	void NotifyActorBeginOverlap(AActor* OtherActor);
 	void NotifyActorEndOverlap(AActor* OtherActor);
 
@@ -157,13 +194,13 @@ private:
 	bool bIsPickUp;
 	bool bIsHit;
 	bool bIsDie;
+	bool bUsingFixedCamera;
 	FTimerHandle ThrowTimerHandle;
 
 	
 	UPROPERTY()
 	class AFixedCamera* FixedCameraActor;
 
-	bool bUsingFixedCamera;
 
 
 };

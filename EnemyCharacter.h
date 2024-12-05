@@ -15,6 +15,9 @@ public:
 	// Sets default values for this character's properties
 	AEnemyCharacter();
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision")
+	class UCapsuleComponent* CollisionComponent;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -30,7 +33,7 @@ public:
 
 	//Anims
 	
-	//Attacking
+	
 	UFUNCTION(BlueprintCallable, Category = "AI Animation")
 	void SetIsAttack(bool Value);
 
@@ -44,13 +47,39 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI Animation")
 	bool GetIsAlert() const;
 
+	UFUNCTION(BlueprintCallable, Category = "IA FUNCTION")
+	void SetIsLooking(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "IA FUNCTION")
+	bool GetIsLooking() const;
+
 
 private:
 
+	FTimerHandle StopTimerHandle;
+
+
+
+	UPROPERTY(EditAnywhere)
+	FName HandSocketName;
+
+	UPROPERTY(EditAnywhere)
+	float TraceDistance = 0.1f; // Distancia del trazado
+
+
+	void PerformLineTrace();
+	void ResetAttacked();
+	void PlayerDeath(bool bPlayerDead);
+	void SetPlayerDeath(bool bNewPlayerDead);
+	void SetAttack(bool Value);
+
+
+
 	bool bIsAttacking;
 	bool bIsAlert;
-
-
+	bool bIsLooking;
+	bool bIsPlayerDead;
+	bool bIsStopAttack;
 	//Stats
 	float Life;
 
