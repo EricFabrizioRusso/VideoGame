@@ -21,6 +21,17 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "EngineUtils.h"
 #include "Blueprint/UserWidget.h"
+#include "NotesToRead.h"
+#include "NotesToReadWidget.h"
+#include "PickUpItemWidget.h"
+#include "InventoryHUDWidget.h"
+#include "InventoryItems.h"
+#include "HealthItem.h"
+#include "InventoryComponent.h"
+#include "InventoryItemWidget.h"
+#include "DetailsItemWidget.h"
+#include "Components/TextBlock.h"
+#include "ItemsOptionsWidget.h"
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -63,6 +74,10 @@ AOnDirt2Character::AOnDirt2Character()
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 
+	   // Crear e inicializar el componente de inventario
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+
+
 	bCanCrouch = false;
 	bIsHoldingObject = false;
 	HeldObject = nullptr;
@@ -71,6 +86,10 @@ AOnDirt2Character::AOnDirt2Character()
 	bIsPickUp = false;
 	bIsHit = false;
 	bIsDie = false;
+	bAllowPause = false;
+	bAllowInventary = false;
+	TextNote = nullptr;
+	//HeldHealth = nullptr;
 
 	//Stats
 	Life = 100;
@@ -103,11 +122,27 @@ void AOnDirt2Character::BeginPlay()
 		OptionsMenu = CreateWidget<UUserWidget>(GetWorld(), OptionsMenuClass);
 	}
 
+
 	GetCharacterMovement()->MaxAcceleration = 600.f; // Ajusta según la suavidad deseada
 
 	// Ajustar la desaceleración al caminar
 	GetCharacterMovement()->BrakingDecelerationWalking = 100.f;
+
+	GetWorldTimerManager().SetTimer(
+		ThrowTimerHandle,  // Identificador del temporizador
+		this,                     // Objeto al que pertenece la función
+		&AOnDirt2Character::EnablePause, // Función que será llamada
+		2.0f,                     // Tiempo de espera
+		false                     // No se repite
+	);
+
+
 }
+	
+
+
+
+
 
 void AOnDirt2Character::Tick(float DeltaTime)
 {
@@ -119,6 +154,13 @@ void AOnDirt2Character::Tick(float DeltaTime)
 	{
 		GetCharacterMovement()->MaxWalkSpeed = 200.f; // Resetear velocidad
 	}
+}
+
+void AOnDirt2Character::EnablePause() {
+
+	bAllowPause = true;
+	bAllowInventary = true;
+
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -152,8 +194,13 @@ void AOnDirt2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		//Aim
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Ongoing, this, &AOnDirt2Character::Aiming);
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Canceled, this, &AOnDirt2Character::StopAiming);
-		EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Started, this, &AOnDirt2Character::ThrowOBJ);
+		EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::ThrowOBJ);
 
+		//Menu Pause
+		EnhancedInputComponent->BindAction(MenuPause, ETriggerEvent::Triggered, this, &AOnDirt2Character::MenuPauseExec);
+
+		//Inventory
+		EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::ShowInventory);
 
 
 	}
@@ -375,6 +422,58 @@ void  AOnDirt2Character::PickUpHandle() {
 void AOnDirt2Character::GrabThrowOBJ()
 {
 
+	if (OverlappingNote && OverlappingNote->bCanBeGrabbed) {
+
+		HeldNote = OverlappingNote;
+
+
+			if (PickUpItemClass)
+			{
+				// Crear el widget y castear al tipo personalizado
+				UUserWidget* WidgetPickUp = CreateWidget<UUserWidget>(GetWorld(), PickUpItemClass);
+				PickUpItemWidget = Cast<UPickUpItemWidget>(WidgetPickUp);
+
+				if (PickUpItemWidget)
+				{
+					PickUpItemWidget->SetItemName(HeldNote->NoteName);
+
+
+					PickUpItemWidget->AddToViewport();
+					GetWorld()->GetFirstPlayerController()->SetPause(true);
+					GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+					UE_LOG(LogTemp, Log, TEXT("Objecto añadido"));
+				}
+			}
+			
+	
+
+
+		
+		
+
+
+	}
+
+	if (OverlappingHealthItem && OverlappingHealthItem->bCanBeGrabbed) {
+
+		HeldHealth = OverlappingHealthItem;
+
+		UUserWidget* WidgetHealth = CreateWidget<UUserWidget>(GetWorld(), PickUpItemClass);
+		PickUpItemWidget = Cast<UPickUpItemWidget>(WidgetHealth);
+
+		if (PickUpItemWidget)
+		{
+			PickUpItemWidget->SetItemName(HeldHealth->ItemData.ItemName.ToString());
+			PickUpItemWidget->AddToViewport();
+			GetWorld()->GetFirstPlayerController()->SetPause(true);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+			UE_LOG(LogTemp, Log, TEXT("Objecto añadido"));
+		}
+
+
+
+	}
+
 
 	if (OverlappingThrowOBJ && OverlappingThrowOBJ->bCanBeGrabbed)
 	{
@@ -398,6 +497,52 @@ void AOnDirt2Character::GrabThrowOBJ()
 
 
 }
+
+void AOnDirt2Character::SetToRead(bool Value) {
+
+
+	if (Value) {
+
+		if(HeldNote){
+
+			if (ReadNoteClass) {
+
+				UUserWidget* WidgetReadNote = CreateWidget<UUserWidget>(GetWorld(), ReadNoteClass);
+				ReadNoteWidget = Cast<UNotesToReadWidget>(WidgetReadNote);
+
+				PickUpItemWidget->RemoveFromParent();
+				ReadNoteWidget = CreateWidget<UNotesToReadWidget>(GetWorld(), ReadNoteClass);
+				ReadNoteWidget->SetNoteText(HeldNote->NoteText);
+				ReadNoteWidget->AddToViewport();
+				HeldNote = nullptr;
+			}
+
+
+		}
+
+		if (HeldHealth) {
+
+
+			InventoryComponent->PickUpItem(HeldHealth);
+			//HeldHealth->Destroy();
+			//HeldHealth->SetActorHiddenInGame(true);
+			//HeldHealth->SetActorEnableCollision(false);
+			//HeldHealth->SetActorTickEnabled(false);
+			HeldHealth = nullptr;
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+		}
+
+	}
+	else {
+
+		HeldNote = nullptr;
+		HeldHealth = nullptr;
+
+	}
+
+}
+
 
 void AOnDirt2Character::DropOBJ() {
 
@@ -537,6 +682,13 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 		UE_LOG(LogTemp, Warning, TEXT("OVERLAP"));
 	}
 
+	if (OtherActor->IsA(ANotesToRead::StaticClass())) {
+
+		OverlappingNote = Cast<ANotesToRead>(OtherActor);
+		UE_LOG(LogTemp, Warning, TEXT("OVERLAP NOTE"));
+
+	}
+
 	if (OtherActor->IsA(AFixedCamera::StaticClass()))
 	{
 		FixedCameraActor = Cast<AFixedCamera>(OtherActor);
@@ -548,6 +700,14 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 		{
 			PlayerController->SetViewTarget(FixedCameraActor);
 		}
+	}
+
+	if (OtherActor->IsA(AHealthItem::StaticClass()))
+	{
+		
+		OverlappingHealthItem = Cast<AHealthItem>(OtherActor);
+		UE_LOG(LogTemp, Warning, TEXT("OVERLAP Health"));
+
 	}
 }
 
@@ -562,9 +722,25 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 		
 		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP"));
 	}
+
+	if (HeldNote == nullptr) {
+
+		OverlappingThrowOBJ = nullptr;
+
+		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
+
+	}
+
+	if (HeldHealth == nullptr) {
+
+		OverlappingHealthItem = nullptr;
+
+		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
+
+	}
 }
 
-//Animations
+//Animations -----------------------------------------------
 
 bool AOnDirt2Character::isAiming() const {
 
@@ -633,3 +809,301 @@ bool AOnDirt2Character::GetIsDie() const {
 	return bIsDie;
 
 }
+
+
+//UI -----------------------------------------------------
+
+void  AOnDirt2Character::MenuPauseExec() {
+
+	if (bAllowPause) {
+
+
+		if (OptionsMenu && OptionsMenu->IsInViewport()) {
+
+			OptionsMenu->RemoveFromParent();
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+
+			UE_LOG(LogTemp, Warning, TEXT("Volviendo al Pause Menu"));
+		}
+
+		if (PauseMenu && !PauseMenu->IsInViewport())
+		{
+			// Habilitar input del jugador durante la pausa
+
+
+			PauseMenu->AddToViewport();
+			GetWorld()->GetFirstPlayerController()->SetPause(true);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+
+			UE_LOG(LogTemp, Warning, TEXT("Menu Pause"));
+
+		}else
+		{
+			PauseMenu->RemoveFromParent();
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+
+
+		
+			UE_LOG(LogTemp, Warning, TEXT("Removiendo Pause Menu desde ManuPauseExec"));
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("Menu Pause Exect"));
+
+	}
+
+
+}
+
+
+void AOnDirt2Character::ShowOptionsMenu()
+{
+	if (OptionsMenu && !OptionsMenu->IsInViewport())
+	{
+		OptionsMenu->AddToViewport();
+
+		UE_LOG(LogTemp, Warning, TEXT("MostrandoOpciones"));
+	}
+}
+
+
+void AOnDirt2Character::OpenOptionsMenu() {
+
+	ShowOptionsMenu();
+
+		if (PauseMenu && PauseMenu->IsInViewport())
+		{
+			PauseMenu->RemoveFromParent();
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+
+
+
+			//UE_LOG(LogTemp, Warning, TEXT("Removiendo Puase Menu"));
+		}
+}
+
+void AOnDirt2Character::ShowPauseMenu() {
+
+	if (PauseMenu && !PauseMenu->IsInViewport())
+	{
+		PauseMenu->AddToViewport();
+	}
+
+}
+
+
+
+FString AOnDirt2Character::GetPickUpItem() {
+
+
+	return TextNote;
+
+}
+
+
+void AOnDirt2Character::ShowInventory()
+{
+
+	if (bAllowInventary) {
+
+		if (!InventoryHUDWidgetClass) return;
+
+		
+
+		if (InventoryHUDWidget && InventoryHUDWidget->IsInViewport()) {
+
+			InventoryHUDWidget->RemoveFromParent();
+			
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+			if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+				DetailsItemWidget->RemoveFromParent();
+				//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+			}
+			if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+				ItemsOptionsWidget->RemoveFromParent();
+
+			}
+
+			UE_LOG(LogTemp, Warning, TEXT("Quitando Inventario"));
+
+		}
+		else {
+
+
+
+			UE_LOG(LogTemp, Warning, TEXT("Poniendo Inventario"));
+			GetWorld()->GetFirstPlayerController()->SetPause(true);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+
+			// Crear el widget si no existe
+
+			if (!InventoryHUDWidget) {
+
+				InventoryHUDWidget= CreateWidget<UInventoryHUDWidget>(GetWorld(), InventoryHUDWidgetClass);
+
+				/*if (!DetailsItemWidget) {
+
+					DetailsItemWidget = CreateWidget<UDetailsItemWidget>(GetWorld(), DetailsWidgetClass);
+					
+				}*/
+			}
+			if (InventoryHUDWidget)
+			{
+					
+					InventoryHUDWidget->AddToViewport();
+
+					/*if (DetailsItemWidget) {
+
+						DetailsItemWidget->AddToViewport();
+
+					}*/
+			}
+		
+
+			// Obtener los nombres del inventario desde el componente
+			TArray<FInventoryItemData> Items = InventoryComponent->GetInventoryItems();
+			// Llenar el widget con los nombres
+			InventoryHUDWidget->PopulateInventory(Items);
+
+
+		}
+
+
+	}
+}
+
+void  AOnDirt2Character::SetUseItem() {
+
+
+	if (ItemName == "Healthy Drink") {
+
+
+		for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
+		{
+			if (InventoryComponent->Inventory[i].ItemName == ItemName)
+			{
+				InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+				UE_LOG(LogTemp, Warning, TEXT("Item Usado"));
+			}
+
+		}
+	}
+	else if (ItemName == "Key") {
+
+
+		UE_LOG(LogTemp, Warning, TEXT("No puedes usar la llave aqui"));
+		return;
+
+	}
+
+
+
+}
+
+void  AOnDirt2Character::SetDropItem() {
+
+
+	if (ItemName == "Healthy Drink") {
+
+
+		for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
+		{
+			if (InventoryComponent->Inventory[i].ItemName == ItemName)
+			{
+				InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+				UE_LOG(LogTemp, Warning, TEXT("Item Eliminado"));
+			}
+
+		}
+
+		if (InventoryHUDWidget)
+		{
+			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
+		}
+
+		if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+			DetailsItemWidget->RemoveFromParent();
+			//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+		}
+		if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+			ItemsOptionsWidget->RemoveFromParent();
+
+		}
+
+		
+
+	}
+	else if (ItemName == "Key") {
+
+
+		UE_LOG(LogTemp, Error, TEXT("No puedes eliminar este item"));
+		return;
+
+	}
+
+
+
+}
+
+void AOnDirt2Character::SetText(const FString& Name, const FString& Desc) {
+
+
+	ItemName = Name;
+
+	if (!ItemsOptionsWidget)
+	{
+		ItemsOptionsWidget = CreateWidget<UItemsOptionsWidget>(GetWorld(), ItemsOptionsWidgetClass);
+		
+	}
+
+	if (!DetailsItemWidget)
+	{
+		
+		DetailsItemWidget = CreateWidget<UDetailsItemWidget>(GetWorld(), DetailsWidgetClass);
+		//UE_LOG(LogTemp, Log, TEXT("Entraaaaaaaa"));
+
+	}
+
+
+	if (DetailsItemWidget->IsInViewport()) {
+
+		DetailsItemWidget->RemoveFromParent();
+	
+
+
+	}
+	if (ItemsOptionsWidget->IsInViewport())
+	{
+		DetailsItemWidget->RemoveFromParent();
+
+	}
+
+	DetailsItemWidget->ItemNameText->SetText(FText::FromString(Name));
+	DetailsItemWidget->ItemDescriptionText->SetText(FText::FromString(Desc));
+	DetailsItemWidget->AddToViewport();
+	ItemsOptionsWidget->AddToViewport();
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+

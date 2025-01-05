@@ -42,6 +42,15 @@ void UOptionsWidget::NativeConstruct()
         CurrentTextureQualityIndex = UserSettings->GetTextureQuality();
         CurrentShadowQualityIndex = UserSettings->GetShadowQuality();
     }
+    else {
+
+
+        // Configuración por defecto si no se encuentra UserSettings
+        CurrentResolutionIndex = 0;
+        CurrentTextureQualityIndex = 2; // Índice para "High"
+        CurrentShadowQualityIndex = 2; // Índice para "High"
+
+    }
 
     // Actualizar textos
     UpdateResolutionText();

@@ -68,10 +68,10 @@ private:
 
 
 	void PerformLineTrace();
-	void ResetAttacked();
-	void PlayerDeath(bool bPlayerDead);
-	void SetPlayerDeath(bool bNewPlayerDead);
-	void SetAttack(bool Value);
+	//void ResetAttacked();
+	//void PlayerDeath(bool bPlayerDead);
+	//void SetPlayerDeath(bool bNewPlayerDead);
+	//void SetAttack(bool Value);
 
 
 

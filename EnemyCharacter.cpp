@@ -75,10 +75,9 @@ void AEnemyCharacter::PerformLineTrace()
 			{
 				UE_LOG(LogTemp, Warning, TEXT("Hit AOnDirtCharacter"));
 
-				bIsAttacking = true;
+				
 				HitActor->GetDamage();
-				GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetAttacked, 0.5f, false);
-				//UE_LOG(LogTemp, Warning, TEXT("bIsAttacked: %s"), bIsAttacked ? TEXT("true") : TEXT("false"));
+				//GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetAttacked, 0.5f, false);
 			}
 			else
 			{
@@ -89,7 +88,7 @@ void AEnemyCharacter::PerformLineTrace()
 
 		}
 
-		//GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &ANewEnemyCharacter::ResetAttacked, 1.f, false);
+		
 	}
 	//UE_LOG(LogTemp, Warning, TEXT("FunctionCalled"));
 

@@ -12,12 +12,24 @@ class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
+class UPickUpItemWidget;
+class AInventoryItems;
+class UInventoryComponent;
+class UInventoryHUDWidget;
+class UInventoryItemWidget;
+class UDetailsItemWidget;
+class UItemsOptionsWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+
 
 UCLASS(config=Game)
 class AOnDirt2Character : public ACharacter
 {
+
+	
+
+
 	GENERATED_BODY()
 
 	/** Camera boom positioning the camera behind the character */
@@ -59,6 +71,12 @@ class AOnDirt2Character : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* ThrowAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* MenuPause;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* InventoryAction;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Grab")
 	FName HandSocketName = "HandSocket";
 
@@ -66,9 +84,6 @@ class AOnDirt2Character : public ACharacter
 
 public:
 	AOnDirt2Character();
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Checkpoint")
-	FVector LastCheckpointLocation;
 	
 
 protected:
@@ -98,6 +113,10 @@ public:
 	UPROPERTY()
 	class AThrowOBJ* OverlappingThrowOBJ; // Referencia al objeto lanzable
 	class AThrowOBJ* HeldObject;
+	class ANotesToRead* OverlappingNote; //Referencia Nota
+	class ANotesToRead* HeldNote;
+	class AHealthItem* OverlappingHealthItem;
+	AHealthItem* HeldHealth;
 
 	// Función para agarrar el objeto
 	UFUNCTION()
@@ -107,6 +126,9 @@ public:
 	
 	
 	//CheckPoint
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Checkpoint")
+	FVector LastCheckpointLocation;
 
 	UFUNCTION()
 	void SetLastCheckpointLocation(FVector NewLocation);
@@ -156,18 +178,51 @@ public:
 
 
 	//Widgets
-	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UUserWidget> PauseMenuClass;
+	UFUNCTION(BlueprintCallable, Category = "Widget")
+	FString GetPickUpItem();
+
+	UFUNCTION(BlueprintCallable, Category = "Widget")
+	void SetToRead(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void SetText(const FString& Name, const FString& Desc);
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void SetUseItem();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void  SetDropItem();
 
 
-	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UUserWidget> OptionsMenuClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UInventoryComponent* InventoryComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> InventoryHUDWidgetClass;
 
 	UPROPERTY()
-	UUserWidget* PauseMenu;
-	UPROPERTY()
-	UUserWidget* OptionsMenu;
+	UInventoryHUDWidget* InventoryHUDWidget;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	FInventoryItemData ItemData;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> DetailsWidgetClass;
+
+	UPROPERTY()
+	UDetailsItemWidget* DetailsItemWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> ItemsOptionsWidgetClass;
+
+	UPROPERTY()
+	UItemsOptionsWidget* ItemsOptionsWidget;
+
+
+	FString ItemName;
+	FString ItemDesc;
 
 private:
 	void Sprinting();
@@ -176,7 +231,18 @@ private:
 	void StopAiming();
 	void ThrowOBJ();
 	void ExecuteThrow();
+	void EnablePause();
 
+
+	//UI Functions
+	void MenuPauseExec();
+	void ShowOptionsMenu();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowPauseMenu();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowInventory();
 
 
 	//Overlap
@@ -184,6 +250,7 @@ private:
 	void NotifyActorEndOverlap(AActor* OtherActor);
 
 	//Stats
+	UPROPERTY(EditAnywhere)
 	float Life;
 
 
@@ -195,11 +262,54 @@ private:
 	bool bIsHit;
 	bool bIsDie;
 	bool bUsingFixedCamera;
+	bool bAllowPause;
+	bool bAllowInventary;
 	FTimerHandle ThrowTimerHandle;
+	FString TextNote;
+
+
 
 	
 	UPROPERTY()
 	class AFixedCamera* FixedCameraActor;
+
+
+	//UI
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void OpenOptionsMenu();
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> CheckPointWidget;
+
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> PauseMenuClass;
+
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> OptionsMenuClass;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> ReadNoteClass;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> PickUpItemClass;
+
+
+
+
+	
+
+	UPROPERTY()
+	UUserWidget* PauseMenu;
+	UPROPERTY()
+	UUserWidget* OptionsMenu;
+	UPROPERTY()
+	UNotesToReadWidget* ReadNoteWidget;
+	UPROPERTY()
+	UPickUpItemWidget* PickUpItemWidget;
+
+
 
 
 
