@@ -32,6 +32,9 @@
 #include "DetailsItemWidget.h"
 #include "Components/TextBlock.h"
 #include "ItemsOptionsWidget.h"
+#include "PistolItem.h"
+#include "MeleeGunItem.h"
+#include "Math/Vector.h"
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -89,7 +92,21 @@ AOnDirt2Character::AOnDirt2Character()
 	bAllowPause = false;
 	bAllowInventary = false;
 	TextNote = nullptr;
-	//HeldHealth = nullptr;
+	bMeleeGun = false;
+	bEquipedGun = false;
+	bEquipedMeleeGun = false;
+	bAimingPistol= false;
+	bIsShooting = false;
+	bShootingPistol = false;
+	bIsShootingCrouch =false;
+	bIsBatIdle= false;
+	bIsBating= false;
+	bAimingMeleeGun = false;
+
+
+	//LookUpDown
+	bIsAimingUp = false;
+	bIsAimingDown = false;
 
 	//Stats
 	Life = 100;
@@ -120,6 +137,11 @@ void AOnDirt2Character::BeginPlay()
 	if (OptionsMenuClass) {
 
 		OptionsMenu = CreateWidget<UUserWidget>(GetWorld(), OptionsMenuClass);
+	}
+	if (InventoryHUDWidget) {
+
+		InventoryHUDWidget = CreateWidget<UInventoryHUDWidget>(GetWorld(), InventoryHUDWidgetClass);
+
 	}
 
 
@@ -196,11 +218,20 @@ void AOnDirt2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Canceled, this, &AOnDirt2Character::StopAiming);
 		EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::ThrowOBJ);
 
+
+		//AimingView
+		EnhancedInputComponent->BindAction(AimingUpAction, ETriggerEvent::Ongoing, this, &AOnDirt2Character::AimingUp);
+		EnhancedInputComponent->BindAction(AimingUpAction, ETriggerEvent::Canceled, this, &AOnDirt2Character::CancelLookUp);
+		EnhancedInputComponent->BindAction(AimingDownAction, ETriggerEvent::Ongoing, this, &AOnDirt2Character::AimingDown);
+		EnhancedInputComponent->BindAction(AimingDownAction, ETriggerEvent::Canceled, this, &AOnDirt2Character::CancelLookDown);
+
 		//Menu Pause
 		EnhancedInputComponent->BindAction(MenuPause, ETriggerEvent::Triggered, this, &AOnDirt2Character::MenuPauseExec);
 
 		//Inventory
 		EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::ShowInventory);
+
+
 
 
 	}
@@ -214,52 +245,143 @@ void AOnDirt2Character::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
+	//FRotator YawRotation;
 
-	/*if (Controller != nullptr)
-	{
-		// find out which way is forward
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
+	/*if (Controller != nullptr) {
 
-		// get forward vector
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	
-		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		if(!bAimingPistol){
 
-		// add movement 
-		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
+
+			// Verifica si se está utilizando una cámara fija
+			if (bUsingFixedCamera && FixedCameraActor)
+			{
+				// Obtiene la rotación de la cámara fija
+				YawRotation = FixedCameraActor->GetActorRotation();
+			}
+			else
+			{
+				// Obtiene la rotación del controlador (cámara libre)
+				const FRotator Rotation = Controller->GetControlRotation();
+				YawRotation = FRotator(0, Rotation.Yaw, 0); // Solo la rotación en el eje Yaw
+			}
+
+			// Obtiene el vector hacia adelante basado en la rotación
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+
+			// Obtiene el vector hacia la derecha basado en la rotación
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+			// Aquí se usan los inputs de movimiento de forma independiente para adelante/atrás y izquierda/derecha
+			// Asegúrate de que MovementVector.Y se use para el movimiento hacia adelante/atrás
+			// y MovementVector.X para el movimiento hacia los lados (izquierda/derecha)
+
+			// Para controles tipo tanque, el movimiento en la dirección Y (hacia adelante) sigue siendo relativo a la cámara,
+			// pero el movimiento en la dirección X (hacia los lados) es fijo en el espacio global.
+
+			AddMovementInput(ForwardDirection, MovementVector.Y);  // Movimiento hacia adelante/atrás
+			AddMovementInput(RightDirection, MovementVector.X);    // Movimiento hacia los lados (izquierda/derecha)
+
+
+
+		}
+
 	}*/
 
-	if (Controller != nullptr) {
 
-		FRotator YawRotation;
-
-		//UE_LOG(LogTemp, Warning, TEXT("ExisteController"));
-		if (bUsingFixedCamera && FixedCameraActor)
+	if (Controller != nullptr)
+	{
+		if (!bAimingPistol)
 		{
-			YawRotation = FixedCameraActor->GetActorRotation();
+
+			FRotator YawRotation;
+			// Movimiento tipo tanque (no está apuntando)
+			// Verifica si se está utilizando una cámara fija
+			if (bUsingFixedCamera && FixedCameraActor)
+			{
+				// Obtiene la rotación de la cámara fija
+				YawRotation = FixedCameraActor->GetActorRotation();
+			}
+			else
+			{
+				// Obtiene la rotación del controlador (cámara libre)
+				const FRotator Rotation = Controller->GetControlRotation();
+				YawRotation = FRotator(0, Rotation.Yaw, 0); // Solo la rotación en el eje Yaw
+			}
+
+			// Obtiene el vector hacia adelante basado en la rotación
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+
+			// Obtiene el vector hacia la derecha basado en la rotación
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+			// Aquí se usan los inputs de movimiento de forma independiente para adelante/atrás y izquierda/derecha
+			// Asegúrate de que MovementVector.Y se use para el movimiento hacia adelante/atrás
+			// y MovementVector.X para el movimiento hacia los lados (izquierda/derecha)
+
+			// Para controles tipo tanque, el movimiento en la dirección Y (hacia adelante) sigue siendo relativo a la cámara,
+			// pero el movimiento en la dirección X (hacia los lados) es fijo en el espacio global.
+
+			AddMovementInput(ForwardDirection, MovementVector.Y);  // Movimiento hacia adelante/atrás
+			AddMovementInput(RightDirection, MovementVector.X);    // Movimiento hacia los lados (izquierda/derecha)
 		}
-		else
+		else // Si el jugador está apuntando
 		{
-			const FRotator Rotation = Controller->GetControlRotation();
-			YawRotation = FRotator(0, Rotation.Yaw, 0);
+
+
+			// Solo permite rotación sobre su propio eje, sin movimiento hacia adelante/atrás
+			FRotator YawRotation;
+
+			// Si se está utilizando una cámara fija, obtenemos la rotación de la cámara
+			if (bUsingFixedCamera && FixedCameraActor)
+			{
+				YawRotation = FixedCameraActor->GetActorRotation();
+			}
+			else
+			{
+				// Si no, obtenemos la rotación del controlador (la rotación de la cámara)
+				const FRotator Rotation = Controller->GetControlRotation();
+				YawRotation = FRotator(0, Rotation.Yaw, 0);  // Solo Yaw para mantener la rotación en el plano horizontal
+			}
+
+			// Aquí, no calculamos la dirección desde la cámara, solo la dirección derecha basada en las teclas A/D
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+			// Solo permite el movimiento lateral (izquierda/derecha) mientras apunta
+			AddMovementInput(RightDirection, MovementVector.X);  // Movimiento lateral (izquierda/derecha)
+
+			// Rotación del personaje mientras apunta (con teclas A/D)
+			if (MovementVector.X != 0.f)  // Si el jugador se mueve hacia la izquierda (A) o hacia la derecha (D)
+			{
+				FRotator CurrentRotation = GetActorRotation();  // Obtener la rotación actual del actor
+
+				// Rotar directamente sobre el eje Yaw (vertical) para rotar sobre el eje propio
+				float RotationAmount = (MovementVector.X > 0.f) ? 2.f : -2.f;  // Gira 2 grados por cada movimiento, en lugar de 5
+
+				FRotator TargetRotation = FRotator(0.f, CurrentRotation.Yaw + RotationAmount, 0.f); // Gira 2 grados por cada movimiento
+
+				// Suavizar la transición de rotación (esto hace que el giro no sea instantáneo)
+				FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, GetWorld()->GetDeltaSeconds(), 50.f);  // Reduce el valor de 5.f a 2.f para que gire más lentamente
+
+				// Establecer la nueva rotación
+				SetActorRotation(NewRotation);
+			}
+
+
+
 		}
-
-		// get forward vector
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-
-		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-		// add movement 
-		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
-
-
 	}
+
 }
+
+
+
+	
+
+
+
+
+
+
 
 void AOnDirt2Character::Look(const FInputActionValue& Value)
 {
@@ -268,10 +390,19 @@ void AOnDirt2Character::Look(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		// add yaw and pitch input to controller
-		AddControllerYawInput(LookAxisVector.X);
-		AddControllerPitchInput(LookAxisVector.Y);
+
+
+			// add yaw and pitch input to controller
+			AddControllerYawInput(LookAxisVector.X);
+			AddControllerPitchInput(LookAxisVector.Y);
+
+
+	
 	}
+
+
+
+
 }
 
 void  AOnDirt2Character::Sprinting() {
@@ -297,11 +428,29 @@ void  AOnDirt2Character::Crouching() {
 
 void AOnDirt2Character::ThrowOBJ() {
 
+
+
+	if (bEquipedGun && bAimingPistol) {
+
+		if (bShootingPistol) return;
+
+		PerformGunTrace();
+		UE_LOG(LogTemp, Warning, TEXT("Dispara dispara"));
+		GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetShootingFlag, 0.6f, false);
+	}
+
+	if (bEquipedMeleeGun && bAimingMeleeGun) {
+
+
+
+
+	}
+
 	if (HeldObject && bIsAiming)
 	{
 		bIsThrowing = true;
 		GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ExecuteThrow, 0.4f, false);
-		//ExecuteThrow();
+
 
 
 	}
@@ -310,6 +459,13 @@ void AOnDirt2Character::ThrowOBJ() {
 
 
 }
+
+
+void AOnDirt2Character::ResetShootingFlag()
+{
+	bShootingPistol = false; 
+}
+
 
 void AOnDirt2Character::ExecuteThrow() {
 
@@ -355,51 +511,243 @@ void AOnDirt2Character::ExecuteThrow() {
 
 void  AOnDirt2Character::Aiming() {
 
-	if (!HeldObject) return;
+	if (bEquipedGun && !bIsCrouched) {
 
-	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	Movement->DisableMovement();
-	//UE_LOG(LogTemp, Warning, TEXT("Apuntando"));
+		bAimingPistol = true;
+		UE_LOG(LogTemp, Warning, TEXT("Apunta."));
 
-	// Direccion del personaje
-	FVector CharacterForward = GetActorForwardVector();
-	FVector CharacterUp = GetActorUpVector();
-	FVector ImpulseDirection = CharacterForward + (CharacterUp * 0.5f); // Ajusta la dirección si es necesario
+		UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+		if (MovementComponent)
+		{
+			MovementComponent->DisableMovement(); // Desactiva el movimiento
+		}
 
-	// Parámetros de simulación
-	const float SimulationTimeStep = 0.005f; // Tiempo entre cada punto de la simulación
-	const int32 MaxSimulationSteps = 200; // Número máximo de pasos de simulación
-	const float Gravity = GetWorld()->GetGravityZ(); // Obtener la gravedad del mundo
+	}
 
-	FVector StartLocation = HeldObject->GetActorLocation();
-	FVector Velocity = ImpulseDirection * 1000;
-	//FVector ImpactPoint;
-	bIsAiming = true;
-
-
-
-
-	for (int32 i = 0; i < MaxSimulationSteps; ++i)
-	{
-		float Time = i * SimulationTimeStep;
-		FVector Position = StartLocation + (Velocity * Time) + (0.5f * FVector(0, 0, Gravity) * Time * Time);
-		FVector NextPosition = StartLocation + (Velocity * (Time + SimulationTimeStep)) + (0.5f * FVector(0, 0, Gravity) * (Time + SimulationTimeStep) * Time);
-
-		// Dibujar la línea de trayectoria
-		DrawDebugLine(GetWorld(), Position, NextPosition, FColor::Green, false, 0.01f, 0, 2.0f);
-
+	if (bEquipedMeleeGun) {
 
 
 	}
+
+	
+	if (HeldObject) {
+
+
+		UCharacterMovementComponent* Movement = GetCharacterMovement();
+		Movement->DisableMovement();
+		//UE_LOG(LogTemp, Warning, TEXT("Apuntando"));
+
+		// Direccion del personaje
+		FVector CharacterForward = GetActorForwardVector();
+		FVector CharacterUp = GetActorUpVector();
+		FVector ImpulseDirection = CharacterForward + (CharacterUp * 0.5f); // Ajusta la dirección si es necesario
+
+		// Parámetros de simulación
+		const float SimulationTimeStep = 0.005f; // Tiempo entre cada punto de la simulación
+		const int32 MaxSimulationSteps = 200; // Número máximo de pasos de simulación
+		const float Gravity = GetWorld()->GetGravityZ(); // Obtener la gravedad del mundo
+
+		FVector StartLocation = HeldObject->GetActorLocation();
+		FVector Velocity = ImpulseDirection * 1000;
+		//FVector ImpactPoint;
+		bIsAiming = true;
+
+
+
+
+		for (int32 i = 0; i < MaxSimulationSteps; ++i)
+		{
+			float Time = i * SimulationTimeStep;
+			FVector Position = StartLocation + (Velocity * Time) + (0.5f * FVector(0, 0, Gravity) * Time * Time);
+			FVector NextPosition = StartLocation + (Velocity * (Time + SimulationTimeStep)) + (0.5f * FVector(0, 0, Gravity) * (Time + SimulationTimeStep) * Time);
+
+			// Dibujar la línea de trayectoria
+			DrawDebugLine(GetWorld(), Position, NextPosition, FColor::Green, false, 0.01f, 0, 2.0f);
+
+
+
+		}
+
+	}
+
+
+}
+
+void AOnDirt2Character::AimingUp() {
+
+	if (!bAimingPistol) return;
+	bIsAimingUp = true;
+
+}
+void AOnDirt2Character::AimingDown() {
+
+	if (!bAimingPistol) return;
+	bIsAimingDown = true;
+}
+void AOnDirt2Character::CancelLookUp() {
+
+	UE_LOG(LogTemp, Warning, TEXT("Deja de Apuntar Arriba"));
+	bIsAimingUp = false;
+
+}
+void AOnDirt2Character::CancelLookDown() {
+
+	UE_LOG(LogTemp, Warning, TEXT("Deja de Apuntar Abajo"));
+	bIsAimingDown = false;
 
 }
 
 void AOnDirt2Character::StopAiming()
 {
+	bIsAiming = false;
+	bAimingPistol = false;
+	bIsAimingDown = false;
+	bIsAimingUp = false;
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->SetMovementMode(MOVE_Walking);
-	bIsAiming = false;
-	UE_LOG(LogTemp, Log, TEXT("Aiming detenido"));
+	UE_LOG(LogTemp, Warning, TEXT("Deja de apuntar."));
+}
+
+void AOnDirt2Character::PerformGunTrace() {
+
+
+	// Verificar que el socket exista en el SkeletalMesh
+	if (!GetMesh() || !GetMesh()->DoesSocketExist(TEXT("HandGunSocket")))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("HandGunSocket no existe en el SkeletalMesh del personaje."));
+		return;
+	}
+
+	bShootingPistol = true;
+	//UCharacterMovementComponent* Movement = GetCharacterMovement();
+	//Movement->DisableMovement();
+
+	// Obtener la posición y rotación del HandGunSocket
+	FVector Start = GetMesh()->GetSocketLocation(TEXT("HandGunSocket"));
+	FRotator SocketRotation = GetMesh()->GetSocketRotation(TEXT("HandGunSocket"));
+	FVector ForwardVector = SocketRotation.Vector(); // Dirección hacia donde apunta el socket
+
+	// Definir la distancia del raycast
+	float TraceDistance = 300.0f;
+	FVector End = Start + (ForwardVector * TraceDistance);
+
+	// Configurar los parámetros del trazado
+	FHitResult HitResult;
+	FCollisionQueryParams TraceParams;
+	TraceParams.bTraceComplex = true;
+	TraceParams.AddIgnoredActor(this); // Ignorar al personaje
+
+	// Ejecutar el Line Trace
+	bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		ECC_Visibility, // Ajusta el canal de colisión según tus necesidades
+		TraceParams
+	);
+
+	// Dibujar líneas de depuración para visualizar el trazado
+	if (bHit)
+	{
+		DrawDebugLine(GetWorld(), Start, HitResult.Location, FColor::Red, false, 5.0f, 0, 1.0f);
+
+		if (HitResult.GetActor())
+		{
+			// Verificar si el actor impactado es un AEnemyCharacter
+			AEnemyCharacter* HitEnemy = Cast<AEnemyCharacter>(HitResult.GetActor());
+			if (HitEnemy)
+			{
+				UE_LOG(LogTemp, Log, TEXT("¡Enemigo alcanzado! %s"), *HitEnemy->GetName());
+				// Realiza cualquier acción adicional con el enemigo alcanzado
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("Impacto con un objeto no válido: %s"), *HitResult.GetActor()->GetName());
+			}
+		}
+	}
+	else
+	{
+		DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 5.0f, 0, 1.0f);
+		UE_LOG(LogTemp, Log, TEXT("No se impactó con ningún objeto."));
+	}
+
+	// Verificar que el socket exista en el SkeletalMesh
+	/*if (!GetMesh() || !GetMesh()->DoesSocketExist(TEXT("HandGunSocket")))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("HandGunSocket no existe en el SkeletalMesh del personaje."));
+		return;
+	}
+
+	// Activar estado de disparo
+	bShootingPistol = true;
+
+	// Obtener la posición y rotación del socket
+	FVector SocketLocation = GetMesh()->GetSocketLocation(TEXT("HandGunSocket"));
+	FRotator SocketRotation = GetMesh()->GetSocketRotation(TEXT("HandGunSocket"));
+	FVector ForwardVector = SocketRotation.Vector(); // Dirección hacia adelante
+
+	// Altura de desplazamiento para las líneas (medio metro en ambas direcciones)
+	float VerticalOffset = 50.0f; // 50 unidades = 0.5 metros
+	float TraceDistance = 300.0f; // Distancia hacia adelante
+
+	// Array de alturas para los trazados (-0.5m, original, +0.5m)
+	TArray<float> VerticalOffsets = { -VerticalOffset, 0.0f, VerticalOffset };
+
+	for (float Offset : VerticalOffsets)
+	{
+		// Calcular inicio y fin del trazado
+		FVector Start = SocketLocation + FVector(0, 0, Offset); // Mover hacia arriba/abajo
+		FVector End = Start + (ForwardVector * TraceDistance);  // Extender hacia adelante
+
+		// Configurar los parámetros del trazado
+		FHitResult HitResult;
+		FCollisionQueryParams TraceParams;
+		TraceParams.bTraceComplex = true;
+		TraceParams.AddIgnoredActor(this); // Ignorar al personaje
+
+		// Ejecutar el Line Trace
+		bool bHit = GetWorld()->LineTraceSingleByChannel(
+			HitResult,
+			Start,
+			End,
+			ECC_Visibility, // Ajusta el canal de colisión según tus necesidades
+			TraceParams
+		);
+
+		// Dibujar líneas de depuración para visualizar los trazados
+		if (bHit)
+		{
+			DrawDebugLine(GetWorld(), Start, HitResult.Location, FColor::Red, false, 5.0f, 0, 1.0f);
+
+			if (HitResult.GetActor())
+			{
+				// Verificar si el actor impactado es un AEnemyCharacter
+				AEnemyCharacter* HitEnemy = Cast<AEnemyCharacter>(HitResult.GetActor());
+				if (HitEnemy)
+				{
+					UE_LOG(LogTemp, Log, TEXT("¡Enemigo alcanzado! %s"), *HitEnemy->GetName());
+					// Realiza cualquier acción adicional con el enemigo alcanzado
+				}
+				else
+				{
+					UE_LOG(LogTemp, Log, TEXT("Impacto con un objeto no válido: %s"), *HitResult.GetActor()->GetName());
+				}
+			}
+		}
+		else
+		{
+			DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 5.0f, 0, 1.0f);
+			UE_LOG(LogTemp, Log, TEXT("No se impactó con ningún objeto en la línea vertical offset: %f"), Offset);
+		}
+	}*/
+
+
+
+
+
+
+
 }
 
 void  AOnDirt2Character::PickUpHandle() {
@@ -474,9 +822,50 @@ void AOnDirt2Character::GrabThrowOBJ()
 
 	}
 
+	if (OverlappingMeleeGunItem && OverlappingMeleeGunItem->bCanBeGrabbed) {
+
+		HeldMeleeGunItem = OverlappingMeleeGunItem;
+
+		UUserWidget* WidgetMeleeGunItem = CreateWidget<UUserWidget>(GetWorld(), PickUpItemClass);
+		PickUpItemWidget = Cast<UPickUpItemWidget>(WidgetMeleeGunItem);
+
+		if (PickUpItemWidget)
+		{
+			PickUpItemWidget->SetItemName(HeldMeleeGunItem->ItemData.ItemName.ToString());
+			PickUpItemWidget->AddToViewport();
+			GetWorld()->GetFirstPlayerController()->SetPause(true);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+			UE_LOG(LogTemp, Log, TEXT("Melee gun añadida"));
+		}
+
+
+	}
+
+	if (OverlappingPistolItem && OverlappingPistolItem->bCanBeGrabbed) {
+
+		HeldPistol = OverlappingPistolItem;
+
+		UUserWidget* WidgetPistolItem = CreateWidget<UUserWidget>(GetWorld(), PickUpItemClass);
+		PickUpItemWidget = Cast<UPickUpItemWidget>(WidgetPistolItem);
+
+		if (PickUpItemWidget)
+		{
+			PickUpItemWidget->SetItemName(HeldPistol->ItemData.ItemName.ToString());
+			PickUpItemWidget->AddToViewport();
+			GetWorld()->GetFirstPlayerController()->SetPause(true);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+			UE_LOG(LogTemp, Log, TEXT("Pistola añadida"));
+		}
+
+
+	}
+
+
 
 	if (OverlappingThrowOBJ && OverlappingThrowOBJ->bCanBeGrabbed)
 	{
+
+		if (bEquipedGun || bEquipedMeleeGun) return;
 
 		HeldObject = OverlappingThrowOBJ;
 		OverlappingThrowOBJ->Mesh->SetSimulatePhysics(false);
@@ -492,6 +881,8 @@ void AOnDirt2Character::GrabThrowOBJ()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("No hay un objeto válido para agarrar"));
 	}
+
+
 
 	
 
@@ -533,11 +924,31 @@ void AOnDirt2Character::SetToRead(bool Value) {
 			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
 		}
 
+
+		if (HeldMeleeGunItem) {
+			InventoryComponent->PickUpItem(HeldMeleeGunItem);
+			//HeldMeleeGunItem = nullptr;
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+
+
+		}
+
+		if (HeldPistol) {
+
+			InventoryComponent->PickUpItem(HeldPistol);
+			//HeldPistol = nullptr;
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+		}
+
 	}
 	else {
 
 		HeldNote = nullptr;
 		HeldHealth = nullptr;
+		HeldPistol = nullptr;
+		HeldMeleeGunItem = nullptr;
 
 	}
 
@@ -709,6 +1120,24 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 		UE_LOG(LogTemp, Warning, TEXT("OVERLAP Health"));
 
 	}
+
+	if (OtherActor->IsA(AMeleeGunItem::StaticClass()))
+	{
+
+		OverlappingMeleeGunItem = Cast<AMeleeGunItem>(OtherActor);
+		UE_LOG(LogTemp, Warning, TEXT("OVERLAP MeleeGun"));
+
+	}
+
+	if (OtherActor->IsA(APistolItem::StaticClass()))
+	{
+
+		OverlappingPistolItem = Cast<APistolItem>(OtherActor);
+		UE_LOG(LogTemp, Warning, TEXT("OVERLAP FireGun"));
+
+	}
+
+
 }
 
 void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
@@ -738,6 +1167,21 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
 
 	}
+
+	if (HeldMeleeGunItem == nullptr) {
+
+		OverlappingHealthItem = nullptr;
+
+		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP MeleeGun"));
+
+	}
+
+	if (HeldPistol == nullptr) {
+
+		OverlappingPistolItem = nullptr;
+
+		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP Gun"));
+	}
 }
 
 //Animations -----------------------------------------------
@@ -748,6 +1192,99 @@ bool AOnDirt2Character::isAiming() const {
 	return bIsAiming;
 
 }
+
+//Pistol
+
+bool AOnDirt2Character::GetAimingGun() const {
+
+
+	return bAimingPistol;
+
+}
+
+void AOnDirt2Character::SetShootingPistol(bool Value) {
+
+
+	 bShootingPistol = Value;
+
+}
+
+bool AOnDirt2Character::GetShootingPistol() const {
+
+
+	return bShootingPistol;
+
+}
+
+void AOnDirt2Character::SetShootingCrouch(bool Value) {
+
+
+	bIsShootingCrouch = Value;
+
+}
+
+
+bool AOnDirt2Character::GetShootingCrouch() const {
+
+
+	return bIsShootingCrouch;
+
+}
+
+
+//Looking UP DOWN
+void AOnDirt2Character::SetAimingGunUp(bool Value){
+
+
+	bIsAimingUp= Value;
+
+}
+
+bool AOnDirt2Character::GetAimingGunUp()const {
+
+
+	return bIsAimingUp;
+
+}
+
+void AOnDirt2Character::SetAimingGunDown(bool Value) {
+
+
+	bIsAimingDown = Value;
+
+}
+
+bool AOnDirt2Character::GetAimingGunDown()const {
+
+
+	return bIsAimingDown;
+
+}
+
+
+//MeleeGun
+bool AOnDirt2Character::GetBatIdle() const {
+
+
+	return bIsBatIdle;
+
+}
+
+void AOnDirt2Character::SetBating(bool Value){
+
+
+	bIsBating= Value;
+
+}
+
+bool AOnDirt2Character::GetBating() const{
+
+
+	return bIsBating;
+
+}
+
+
 
 
 //Throw Anim
@@ -814,6 +1351,8 @@ bool AOnDirt2Character::GetIsDie() const {
 //UI -----------------------------------------------------
 
 void  AOnDirt2Character::MenuPauseExec() {
+
+	if (InventoryHUDWidget && InventoryHUDWidget->IsInViewport()) return;
 
 	if (bAllowPause) {
 
@@ -885,6 +1424,9 @@ void AOnDirt2Character::OpenOptionsMenu() {
 
 void AOnDirt2Character::ShowPauseMenu() {
 
+
+	if (InventoryHUDWidget && InventoryHUDWidget->IsInViewport()) return;
+
 	if (PauseMenu && !PauseMenu->IsInViewport())
 	{
 		PauseMenu->AddToViewport();
@@ -904,6 +1446,8 @@ FString AOnDirt2Character::GetPickUpItem() {
 
 void AOnDirt2Character::ShowInventory()
 {
+	if (PauseMenu && PauseMenu->IsInViewport()) return;
+
 
 	if (bAllowInventary) {
 
@@ -980,6 +1524,130 @@ void AOnDirt2Character::ShowInventory()
 void  AOnDirt2Character::SetUseItem() {
 
 
+
+	if (ItemName == "Gun") {
+
+		if (bEquipedMeleeGun) {
+
+
+			bEquipedMeleeGun = false;
+
+		}
+
+		if (bEquipedGun) {
+
+			if (HeldPistol) {
+
+				//El arma ya esta equipada
+				UE_LOG(LogTemp, Error, TEXT("El arma ya esta equipada"));
+				bEquipedGun = false;
+				HeldPistol->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+				HeldPistol->SetActorEnableCollision(true); // Reactivar la colisión si es necesario
+				HeldPistol->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+				HeldPistol->SetActorTickEnabled(true);
+
+
+				// Añadir al root para evitar eliminación
+				HeldPistol->AddToRoot();
+					
+
+				
+			}
+			else {
+
+				UE_LOG(LogTemp, Error, TEXT("El arma no existe en memoria"));
+			}
+
+		}
+		else {
+			bEquipedGun = true;
+
+			if (HeldPistol) {
+
+				
+
+				HeldPistol->SetActorHiddenInGame(false); // Hacer visible el arma
+				HeldPistol->SetActorTickEnabled(true);  // Reactivar el tick si es necesario
+				HeldPistol->Mesh->SetSimulatePhysics(false);
+				HeldPistol->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("HandSocket"));
+				HeldPistol->SetActorEnableCollision(false);
+
+		
+
+					HeldPistol->RemoveFromRoot();
+
+				
+
+
+
+			}
+			else {
+				UE_LOG(LogTemp, Error, TEXT("El arma no existe en memoria"));
+
+			}
+
+
+
+			
+
+		}
+
+
+		if (bEquipedGun) {
+
+
+			//ItemsOptionsWidget->UpdateText(false);
+			UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
+			
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
+		}
+		else {
+
+
+			UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
+
+		}
+
+
+
+
+	}
+
+	if (ItemName == "bat") {
+
+		if (bEquipedGun) {
+
+			bEquipedGun = false;
+
+		}
+
+		if (bEquipedMeleeGun) {
+
+
+			//El arma ya esta equipada
+			return;
+
+		}
+		else {
+			
+			bEquipedMeleeGun = true;
+
+			HeldMeleeGunItem->Mesh->SetSimulatePhysics(false);
+			HeldMeleeGunItem->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("HandSocket"));
+			HeldMeleeGunItem->SetActorEnableCollision(false);
+
+			//Logica Melee gun en mano
+
+		}
+		
+
+
+	}
+
+
+	//ItemsUso
+
 	if (ItemName == "Healthy Drink") {
 
 
@@ -992,12 +1660,58 @@ void  AOnDirt2Character::SetUseItem() {
 			}
 
 		}
+
+		if (InventoryHUDWidget)
+		{
+			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
+		}
+
+		if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+			DetailsItemWidget->RemoveFromParent();
+			//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+		}
+		if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+			ItemsOptionsWidget->RemoveFromParent();
+
+		}
+
+		if (Life <= 100.f) {
+
+			Life = Life + 20.f;
+
+		}
+		else {
+
+			//Notification you health is full!
+
+		}
+
 	}
 	else if (ItemName == "Key") {
 
 
 		UE_LOG(LogTemp, Warning, TEXT("No puedes usar la llave aqui"));
-		return;
+
+
+		if (InventoryHUDWidget)
+		{
+			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
+		}
+
+		if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+			DetailsItemWidget->RemoveFromParent();
+			//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+		}
+		if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+			ItemsOptionsWidget->RemoveFromParent();
+
+		}
 
 	}
 
@@ -1006,6 +1720,49 @@ void  AOnDirt2Character::SetUseItem() {
 }
 
 void  AOnDirt2Character::SetDropItem() {
+
+
+
+	if (ItemName == "Gun") {
+
+		UE_LOG(LogTemp, Warning, TEXT("Cant drop FIREGUN"));
+		return;
+
+	}
+
+	if (ItemName == "Bat") {
+
+		//Tirar Melee weapon
+
+		for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
+		{
+			if (InventoryComponent->Inventory[i].ItemName == ItemName)
+			{
+				InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+				HeldMeleeGunItem = nullptr;
+				UE_LOG(LogTemp, Warning, TEXT("Item Eliminado"));
+			}
+
+		}
+
+		if (InventoryHUDWidget)
+		{
+			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
+		}
+
+		if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+			DetailsItemWidget->RemoveFromParent();
+			//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+		}
+		if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+			ItemsOptionsWidget->RemoveFromParent();
+
+		}
+
+	}
 
 
 	if (ItemName == "Healthy Drink") {
@@ -1038,15 +1795,32 @@ void  AOnDirt2Character::SetDropItem() {
 
 		}
 
-		
+		return;
 
 	}
 	else if (ItemName == "Key") {
 
 
 		UE_LOG(LogTemp, Error, TEXT("No puedes eliminar este item"));
-		return;
 
+
+		if (InventoryHUDWidget)
+		{
+			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
+		}
+
+		if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+			DetailsItemWidget->RemoveFromParent();
+			//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+		}
+		if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+			ItemsOptionsWidget->RemoveFromParent();
+
+		}
+		return;
 	}
 
 
@@ -1058,33 +1832,89 @@ void AOnDirt2Character::SetText(const FString& Name, const FString& Desc) {
 
 	ItemName = Name;
 
+
+
+
 	if (!ItemsOptionsWidget)
 	{
 		ItemsOptionsWidget = CreateWidget<UItemsOptionsWidget>(GetWorld(), ItemsOptionsWidgetClass);
-		
+
 	}
 
 	if (!DetailsItemWidget)
 	{
-		
+
 		DetailsItemWidget = CreateWidget<UDetailsItemWidget>(GetWorld(), DetailsWidgetClass);
-		//UE_LOG(LogTemp, Log, TEXT("Entraaaaaaaa"));
+
 
 	}
 
 
+
+	if (ItemName == "Gun") {
+
+
+		if (bEquipedGun) {
+
+
+			//ItemsOptionsWidget->UpdateText(false);
+			UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
+		}
+		else {
+
+			
+			UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
+			
+		}
+
+
+	}
+
+	if (ItemName == "Bat") {
+
+
+		if (bEquipedMeleeGun) {
+
+
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
+		}
+		else {
+
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
+
+		}
+
+
+	}
+
+	if (ItemName == "Healthy Drink") {
+
+		ItemsOptionsWidget->EquipText->SetText(FText::FromString("Use"));
+
+	}
+
 	if (DetailsItemWidget->IsInViewport()) {
 
 		DetailsItemWidget->RemoveFromParent();
-	
+
 
 
 	}
 	if (ItemsOptionsWidget->IsInViewport())
 	{
-		DetailsItemWidget->RemoveFromParent();
+		ItemsOptionsWidget->RemoveFromParent();
+
 
 	}
+		
+
+
+
+
+
+
 
 	DetailsItemWidget->ItemNameText->SetText(FText::FromString(Name));
 	DetailsItemWidget->ItemDescriptionText->SetText(FText::FromString(Desc));
@@ -1095,6 +1925,18 @@ void AOnDirt2Character::SetText(const FString& Name, const FString& Desc) {
 
 
 
+}
+
+void AOnDirt2Character::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+	Super::EndPlay(EndPlayReason);
+
+	// Asegúrate de limpiar el objeto referenciado
+	if (HeldPistol) {
+		HeldPistol->RemoveFromRoot();
+		HeldPistol = nullptr; // Limpia la referencia
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("EndPlay llamado. Se ha liberado HeldPistol."));
 }
 
 

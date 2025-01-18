@@ -54,6 +54,9 @@ public:
 	bool GetIsLooking() const;
 
 
+	//Stats
+	float Life;
+
 private:
 
 	FTimerHandle StopTimerHandle;
@@ -80,7 +83,6 @@ private:
 	bool bIsLooking;
 	bool bIsPlayerDead;
 	bool bIsStopAttack;
-	//Stats
-	float Life;
+
 
 };

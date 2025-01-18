@@ -20,6 +20,10 @@ public:
     UPROPERTY(meta = (BindWidget))
     class UButton* UseBtn; 
 
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* EquipText;
+
 	//UPROPERTY(meta = (BindWidget))
 	//class UButton* CombineButton; 
 
@@ -30,7 +34,11 @@ public:
 
 	virtual void NativeConstruct() override;
 
+
+	UFUNCTION()
 	void OnUseClicked();
+
+	UFUNCTION()
 	void OnDropClicked();
 	
 };

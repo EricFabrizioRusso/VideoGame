@@ -23,6 +23,8 @@ void UItemsOptionsWidget::NativeConstruct() {
     {
         DropBtn->OnClicked.AddDynamic(this, &UItemsOptionsWidget::OnDropClicked);
     }
+
+
    
 }
 
@@ -37,4 +39,6 @@ void UItemsOptionsWidget::OnDropClicked() {
     UE_LOG(LogTemp, Warning, TEXT("Entra a OnDropClicked"));
 
 }
+
+
 

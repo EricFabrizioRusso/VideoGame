@@ -77,6 +77,12 @@ class AOnDirt2Character : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* InventoryAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AimingUpAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AimingDownAction;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Grab")
 	FName HandSocketName = "HandSocket";
 
@@ -86,6 +92,7 @@ public:
 	AOnDirt2Character();
 	
 
+
 protected:
 
 	/** Called for movement input */
@@ -93,11 +100,14 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
-			
+		
+
 
 protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	
 	// To add mapping context
 	virtual void BeginPlay();
@@ -113,10 +123,22 @@ public:
 	UPROPERTY()
 	class AThrowOBJ* OverlappingThrowOBJ; // Referencia al objeto lanzable
 	class AThrowOBJ* HeldObject;
+
+	//Notes Item
 	class ANotesToRead* OverlappingNote; //Referencia Nota
 	class ANotesToRead* HeldNote;
+
+	//Health Item
 	class AHealthItem* OverlappingHealthItem;
-	AHealthItem* HeldHealth;
+	class AHealthItem* HeldHealth;
+
+	//Gun Pistol
+	class APistolItem* OverlappingPistolItem;
+	class APistolItem* HeldPistol;
+
+	//MeleeWeapon
+	class AMeleeGunItem* OverlappingMeleeGunItem;
+	class AMeleeGunItem* HeldMeleeGunItem;
 
 	// Función para agarrar el objeto
 	UFUNCTION()
@@ -177,6 +199,56 @@ public:
 	bool GetIsDie() const;
 
 
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetAimingGun() const;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SetAimingGunUp(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetAimingGunUp() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SetAimingGunDown(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetAimingGunDown() const;
+	//Pistol Shoot
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SetShootingPistol(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetShootingPistol() const;
+
+	//Pistol Crouch
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SetShootingCrouch(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetShootingCrouch() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void PerformGunTrace();
+
+	//Bat
+
+
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetBatIdle() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SetBating(bool Value);
+
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetBating() const;
+
+
+
+
 	//Widgets
 	UFUNCTION(BlueprintCallable, Category = "Widget")
 	FString GetPickUpItem();
@@ -192,6 +264,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void  SetDropItem();
+
+
 
 
 
@@ -232,6 +306,15 @@ private:
 	void ThrowOBJ();
 	void ExecuteThrow();
 	void EnablePause();
+	void ResetShootingFlag();
+
+
+	//Looking
+	void AimingUp();
+	void AimingDown();
+	void CancelLookUp();
+	void CancelLookDown();
+	
 
 
 	//UI Functions
@@ -257,6 +340,8 @@ private:
 	bool bCanCrouch;
 	bool bIsHoldingObject;
 	bool bIsAiming;
+	bool bAimingPistol;
+	bool bShootingPistol;
 	bool bIsThrowing;
 	bool bIsPickUp;
 	bool bIsHit;
@@ -264,6 +349,21 @@ private:
 	bool bUsingFixedCamera;
 	bool bAllowPause;
 	bool bAllowInventary;
+	bool bMeleeGun;
+	bool bEquipedGun;
+	bool bEquipedMeleeGun;
+	bool bAimingMeleeGun;
+	bool bIsShooting;
+	bool bIsShootingCrouch;
+	bool bIsBatIdle;
+	bool bIsBating;
+
+
+
+	//AimingBools
+	bool bIsAimingUp;
+	bool bIsAimingDown;
+
 	FTimerHandle ThrowTimerHandle;
 	FString TextNote;
 

@@ -16,6 +16,9 @@ AInventoryItems::AInventoryItems()
 
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
     RootComponent = Mesh; // Asigna el StaticMesh como el RootComponent
+
+
+
     Mesh->SetSimulatePhysics(true);
     Mesh->SetNotifyRigidBodyCollision(true);
 
