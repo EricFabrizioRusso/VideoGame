@@ -102,6 +102,7 @@ AOnDirt2Character::AOnDirt2Character()
 	bIsBatIdle= false;
 	bIsBating= false;
 	bAimingMeleeGun = false;
+	bIsTakingDamage = false;
 
 
 	//LookUpDown
@@ -513,14 +514,20 @@ void  AOnDirt2Character::Aiming() {
 
 	if (bEquipedGun && !bIsCrouched) {
 
-		bAimingPistol = true;
-		UE_LOG(LogTemp, Warning, TEXT("Apunta."));
+		if (!bIsTakingDamage) {
 
-		UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-		if (MovementComponent)
-		{
-			MovementComponent->DisableMovement(); // Desactiva el movimiento
+			bAimingPistol = true;
+			UE_LOG(LogTemp, Warning, TEXT("Apunta."));
+
+			UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+			if (MovementComponent)
+			{
+				MovementComponent->DisableMovement(); // Desactiva el movimiento
+			}
+
+
 		}
+
 
 	}
 
@@ -658,6 +665,7 @@ void AOnDirt2Character::PerformGunTrace() {
 			if (HitEnemy)
 			{
 				UE_LOG(LogTemp, Log, TEXT("¡Enemigo alcanzado! %s"), *HitEnemy->GetName());
+				HitEnemy->GetEnenmyDamage("Gun");
 				// Realiza cualquier acción adicional con el enemigo alcanzado
 			}
 			else
@@ -993,6 +1001,9 @@ void AOnDirt2Character::GetDamage() {
 	}
 
 	bIsHit = true;
+	bAimingPistol = false;
+	bIsTakingDamage = true;
+	GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetTakingDamage, 0.4f, false);
 	/*if (!Life == 0) {
 
 		Life = Life - 50;
@@ -1051,6 +1062,10 @@ void AOnDirt2Character::GetDamage() {
 
 	}*/
 
+}
+void AOnDirt2Character::ResetTakingDamage() {
+
+	bIsTakingDamage = false;
 }
 
 void AOnDirt2Character::SetLastCheckpointLocation(FVector NewLocation)

@@ -307,6 +307,7 @@ private:
 	void ExecuteThrow();
 	void EnablePause();
 	void ResetShootingFlag();
+	void ResetTakingDamage();
 
 
 	//Looking
@@ -357,6 +358,7 @@ private:
 	bool bIsShootingCrouch;
 	bool bIsBatIdle;
 	bool bIsBating;
+	bool bIsTakingDamage;
 
 
 

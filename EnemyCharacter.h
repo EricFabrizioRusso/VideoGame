@@ -31,6 +31,9 @@ public:
 
 
 
+
+	void GetEnenmyDamage(const FString& Weapon);
+
 	//Anims
 	
 	
@@ -54,6 +57,18 @@ public:
 	bool GetIsLooking() const;
 
 
+
+	//Damage and die
+	UFUNCTION(BlueprintCallable, Category = "IA FUNCTION")
+	void SetIsDamage(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "IA FUNCTION")
+	bool GetIsDamage() const;
+
+	UFUNCTION(BlueprintCallable, Category = "IA FUNCTION")
+	bool GetIsDie() const;
+
+
 	//Stats
 	float Life;
 
@@ -71,10 +86,7 @@ private:
 
 
 	void PerformLineTrace();
-	//void ResetAttacked();
-	//void PlayerDeath(bool bPlayerDead);
-	//void SetPlayerDeath(bool bNewPlayerDead);
-	//void SetAttack(bool Value);
+	void ResetAttack();
 
 
 
@@ -83,6 +95,9 @@ private:
 	bool bIsLooking;
 	bool bIsPlayerDead;
 	bool bIsStopAttack;
+	bool bIsDamage;
+	bool bIsDie;
+	bool bResetAttack;
 
 
 };

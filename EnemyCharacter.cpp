@@ -28,6 +28,9 @@ AEnemyCharacter::AEnemyCharacter()
 	bIsLooking = false;
 	bIsPlayerDead = false;
 	bIsStopAttack = false;
+	bIsDamage = false;
+	bIsDie = false;
+	bResetAttack = false;
 }
 
 // Called when the game starts or when spawned
@@ -73,14 +76,21 @@ void AEnemyCharacter::PerformLineTrace()
 
 			if (HitActor)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Hit AOnDirtCharacter"));
+				if (!bResetAttack) {
 
-				
-				HitActor->GetDamage();
-				//GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetAttacked, 0.5f, false);
+
+					UE_LOG(LogTemp, Warning, TEXT("Hit AOnDirtCharacter"));
+					HitActor->GetDamage();
+					bResetAttack = true;
+					GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetAttack, 0.5f, false);
+
+
+				}
 			}
 			else
 			{
+				
+				
 				UE_LOG(LogTemp, Warning, TEXT("Hit something else"));
 			}
 
@@ -101,43 +111,43 @@ void AEnemyCharacter::PerformLineTrace()
 
 }
 
+void AEnemyCharacter::ResetAttack() {
 
-/*void AEnemyCharacter::ResetAttacked() {
-
-	bIsAttacking = false;
-
-}
-
-void AEnemyCharacter::SetPlayerDeath(bool bNewPlayerDead) {
-
-	PlayerDeath(bNewPlayerDead);
+	bResetAttack = false;
 
 }
 
-void AEnemyCharacter::PlayerDeath(bool bPlayerDead) {
 
-	if (bPlayerDead) {
 
-		GetCharacterMovement()->DisableMovement();
+void AEnemyCharacter::GetEnenmyDamage(const FString& Weapon) {
+
+	if (Weapon == "Gun") {
+
+
+		if (Life >= 0.f) {
+
+			Life= Life - 50.f;
+			bIsDamage = true;
+
+		}
+		else {
+
+			bIsDie = true;
+			UE_LOG(LogTemp, Warning, TEXT("Enemigo Muertooooo"));
+			SetActorEnableCollision(false);
+
+			UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+			if (MovementComponent)
+			{
+				MovementComponent->DisableMovement(); // Desactiva el movimiento
+			}
+
+		}
 
 	}
 
+
 }
-
-void AEnemyCharacter::SetAttack(bool Value) {
-
-	bIsStopAttack = Value;
-	UE_LOG(LogTemp, Warning, TEXT("Entra al SetAttack..."));
-
-	if (bIsStopAttack) {
-
-		GetCharacterMovement()->DisableMovement();
-
-	}
-
-
-
-}*/
 
 
 
@@ -183,5 +193,30 @@ bool AEnemyCharacter::GetIsLooking() const {
 
 
 	return bIsLooking;
+
+}
+
+//Damage
+
+void AEnemyCharacter::SetIsDamage(bool Value) {
+
+
+	bIsDamage= Value;
+
+}
+
+bool AEnemyCharacter::GetIsDamage() const {
+
+
+	return bIsDamage;
+
+}
+
+//Death
+
+bool AEnemyCharacter::GetIsDie() const {
+
+
+	return bIsDie;
 
 }
