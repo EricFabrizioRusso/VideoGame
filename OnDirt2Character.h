@@ -19,6 +19,10 @@ class UInventoryHUDWidget;
 class UInventoryItemWidget;
 class UDetailsItemWidget;
 class UItemsOptionsWidget;
+class UGameOverWidget;
+class UEnvironmentWidget;
+class UNotificationWidget;
+class UNiagaraSystem;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -83,6 +87,9 @@ class AOnDirt2Character : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* AimingDownAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* RestartAction;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Grab")
 	FName HandSocketName = "HandSocket";
 
@@ -140,6 +147,10 @@ public:
 	class AMeleeGunItem* OverlappingMeleeGunItem;
 	class AMeleeGunItem* HeldMeleeGunItem;
 
+	//Interact Environment
+	class AEnvironment* OverlappingEnvironment;
+
+
 	// Función para agarrar el objeto
 	UFUNCTION()
 	void GrabThrowOBJ();
@@ -155,7 +166,7 @@ public:
 	UFUNCTION()
 	void SetLastCheckpointLocation(FVector NewLocation);
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable, Category = "Respawn")
 	void Respawn();
 
 
@@ -234,6 +245,8 @@ public:
 
 	//Bat
 
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void PerformBatTrace();
 
 
 	UFUNCTION(BlueprintCallable, Category = "Animation")
@@ -247,6 +260,11 @@ public:
 	bool GetBating() const;
 
 
+	//Language
+	/*UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool SelectLanguage() const;
+
+	bool Language;*/
 
 
 	//Widgets
@@ -295,6 +313,21 @@ public:
 	UItemsOptionsWidget* ItemsOptionsWidget;
 
 
+
+	//Particles and Lights
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* BloodEffect;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* LineShootEffect;
+
+	// Clase de luz a instanciar
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lighting")
+	TSubclassOf<class UPointLightComponent> PointLightClass;
+
+
 	FString ItemName;
 	FString ItemDesc;
 
@@ -307,7 +340,12 @@ private:
 	void ExecuteThrow();
 	void EnablePause();
 	void ResetShootingFlag();
+	void ResetBatFlag();
 	void ResetTakingDamage();
+
+
+	UFUNCTION()
+	void RemoveWidgets();
 
 
 	//Looking
@@ -359,6 +397,14 @@ private:
 	bool bIsBatIdle;
 	bool bIsBating;
 	bool bIsTakingDamage;
+	bool ResetMeleeDamage;
+
+
+
+	//CheckPoint Stats
+	float CheckPointLife;
+	TArray<FInventoryItemData> CheckPointInventory;
+
 
 
 
@@ -367,6 +413,7 @@ private:
 	bool bIsAimingDown;
 
 	FTimerHandle ThrowTimerHandle;
+	FTimerHandle NotiTimerHandle;
 	FString TextNote;
 
 
@@ -381,7 +428,7 @@ private:
 	void OpenOptionsMenu();
 
 	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UUserWidget> CheckPointWidget;
+	TSubclassOf<UUserWidget> CheckPointWidgetClass;
 
 
 	UPROPERTY(EditAnywhere, Category = "UI")
@@ -397,10 +444,16 @@ private:
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<UUserWidget> PickUpItemClass;
 
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> GameOverWidgetClass;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> NotificationWidgetClass;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> EnvironmentWidgetClass;
 
 
-
-	
 
 	UPROPERTY()
 	UUserWidget* PauseMenu;
@@ -410,6 +463,12 @@ private:
 	UNotesToReadWidget* ReadNoteWidget;
 	UPROPERTY()
 	UPickUpItemWidget* PickUpItemWidget;
+	UPROPERTY()
+	UGameOverWidget* GameOverWidget;
+	UPROPERTY()
+	UNotificationWidget* NotificationWidget;
+	UPROPERTY()
+	UEnvironmentWidget* EnvironmentWidget;
 
 
 

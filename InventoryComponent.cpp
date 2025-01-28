@@ -47,6 +47,15 @@ void UInventoryComponent::PickUpItem(AInventoryItems* Item)
 
 void UInventoryComponent::AddItem(const FInventoryItemData& NewItem)
 {
+
+    //Full Inventory
+    if (Inventory.Num() >= 4)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("El inventario está lleno. No se puede agregar el ítem: %s"), *NewItem.ItemName.ToString());
+        return;
+    }
+
+
     // Busca si el ítem ya existe en el inventario
     for (FInventoryItemData& Item : Inventory)
     {
@@ -83,3 +92,20 @@ void UInventoryComponent::RemoveItemByName(const FString& ItemName)
     return;
 
 }
+
+void UInventoryComponent::SetInventoryItems(const TArray<FInventoryItemData>& NewInventory)
+{
+    // Reemplazar el inventario actual con el nuevo inventario
+    Inventory = NewInventory;
+
+    // Mensaje de depuración para confirmar el cambio
+    UE_LOG(LogTemp, Warning, TEXT("El inventario ha sido actualizado. Nuevos elementos:"));
+
+    for (const FInventoryItemData& Item : Inventory)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Ítem: %s, Cantidad: %d"), *Item.ItemName.ToString(), Item.Quantity);
+    }
+}
+
+
+

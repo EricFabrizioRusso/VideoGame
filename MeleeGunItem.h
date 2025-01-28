@@ -19,9 +19,21 @@ public:
 
 	AMeleeGunItem();
 
+protected:
+
+	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health Properties")
 	float AttackDamage;
 
+
+	// Manejar el evento de superposición
+	UFUNCTION()
+	void OnMeshBeginOverlap(UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex,
+		bool bFromSweep,
+		const FHitResult& SweepResult);
 	
 };

@@ -71,6 +71,7 @@ public:
 
 	//Stats
 	float Life;
+	bool bIsDie;
 
 private:
 
@@ -87,6 +88,7 @@ private:
 
 	void PerformLineTrace();
 	void ResetAttack();
+	void ResetTakingDamage();
 
 
 
@@ -96,8 +98,9 @@ private:
 	bool bIsPlayerDead;
 	bool bIsStopAttack;
 	bool bIsDamage;
-	bool bIsDie;
+
 	bool bResetAttack;
+	bool bResetDamage;
 
 
 };

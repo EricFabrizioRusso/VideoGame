@@ -4,19 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "CheckPoint.generated.h"
-
-
-class UCheckPointWidget;
+#include "Environment.generated.h"
 
 UCLASS()
-class ONDIRT2_API ACheckPoint : public AActor
+class ONDIRT2_API AEnvironment : public AActor
 {
 	GENERATED_BODY()
 	
 public:	
 	// Sets default values for this actor's properties
-	ACheckPoint();
+	AEnvironment();
 
 protected:
 	// Called when the game starts or when spawned
@@ -27,32 +24,27 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UBoxComponent* BoxComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UStaticMeshComponent* MeshComponent;
 
+
 	UFUNCTION()
-	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
-	FVector GetCheckpointLocation() const;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TSubclassOf<UUserWidget> CheckPointWidgetClass;
-
-
-	UPROPERTY()
-	UCheckPointWidget* CheckPointWidget;
+	UFUNCTION()
+	void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 
+	bool bCanBeGrabbed;
 
-private:
 
-	bool Overlaped;
-	void RemoveWidget();
-
-	FTimerHandle TimerHandle;
-
+	UPROPERTY(EditAnywhere, Category= "Environment")
+	FString EnvironmentString;
 
 };

@@ -52,5 +52,11 @@ public:
 
 	void RemoveItemByName(const FString& ItemName);
 
+	// Reemplazar los datos del inventario
+	void SetInventoryItems(const TArray<FInventoryItemData>& NewInventory);
+
 		
 };
+
+
+

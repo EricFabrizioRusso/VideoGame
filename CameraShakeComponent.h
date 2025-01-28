@@ -17,5 +17,9 @@ class ONDIRT2_API UCameraShakeComponent : public ULegacyCameraShake
 public:
 
 	UCameraShakeComponent();
+
+
+
+	void SetOscillationDuration(float NewDuration);
 	
 };

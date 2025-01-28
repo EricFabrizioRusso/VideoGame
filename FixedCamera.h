@@ -33,13 +33,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Control")
 	AActor* TargetActor;
 
-
+	
 
 
 private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	class UBoxComponent* BoxComponent;
+
 
 
 	void EnableRotation();

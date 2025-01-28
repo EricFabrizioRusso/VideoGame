@@ -10,6 +10,7 @@
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AIController.h"
+#include "EnemyAIController.h"
 
 // Sets default values
 AEnemyCharacter::AEnemyCharacter()
@@ -31,6 +32,7 @@ AEnemyCharacter::AEnemyCharacter()
 	bIsDamage = false;
 	bIsDie = false;
 	bResetAttack = false;
+	bResetDamage = false;
 }
 
 // Called when the game starts or when spawned
@@ -64,6 +66,7 @@ void AEnemyCharacter::PerformLineTrace()
 	FHitResult HitResult;
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(this); // Ignorar al propio enemigo
+
 	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, HandLocation, EndLocation, ECC_Visibility, CollisionParams);
 
 	
@@ -72,17 +75,22 @@ void AEnemyCharacter::PerformLineTrace()
 		AOnDirt2Character* HitActor = Cast<AOnDirt2Character>(HitResult.GetActor());
 		
 		if (bIsAttacking) {
-			UE_LOG(LogTemp, Warning, TEXT("Entra"));
+			//UE_LOG(LogTemp, Warning, TEXT("Entra"));
 
 			if (HitActor)
 			{
 				if (!bResetAttack) {
 
+					if (!bIsDie) {
 
-					UE_LOG(LogTemp, Warning, TEXT("Hit AOnDirtCharacter"));
-					HitActor->GetDamage();
-					bResetAttack = true;
-					GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetAttack, 0.5f, false);
+
+						UE_LOG(LogTemp, Warning, TEXT("Hit AOnDirtCharacter"));
+						HitActor->GetDamage();
+						bResetAttack = true;
+						GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetAttack, 1.5f, false);
+					}
+
+
 
 
 				}
@@ -117,6 +125,12 @@ void AEnemyCharacter::ResetAttack() {
 
 }
 
+void AEnemyCharacter::ResetTakingDamage() {
+
+	bResetDamage = false;
+
+}
+
 
 
 void AEnemyCharacter::GetEnenmyDamage(const FString& Weapon) {
@@ -126,11 +140,63 @@ void AEnemyCharacter::GetEnenmyDamage(const FString& Weapon) {
 
 		if (Life >= 0.f) {
 
-			Life= Life - 50.f;
-			bIsDamage = true;
+			if (!bResetDamage) {
+
+				Life= Life - 50.f;
+				bIsDamage = true;
+				bIsAlert = false;
+				bIsLooking = false;
+				bIsAttacking = false;
+				bResetDamage = true;
+				GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetTakingDamage, 1.f, false);
+
+			}
 
 		}
 		else {
+
+		
+			bIsDie = true;
+			UE_LOG(LogTemp, Warning, TEXT("Enemigo Muertooooo"));
+			SetActorEnableCollision(false);
+
+
+			AEnemyAIController* AIController = Cast<AEnemyAIController>(GetController());
+			if (AIController)
+			{
+				AIController->StopMovement();
+				//AIController->Unpossess(); // Desconecta el controlador del enemigo
+
+				UBehaviorTreeComponent* BehaviorTreeComp = Cast<UBehaviorTreeComponent>(AIController->GetBrainComponent());
+				if (BehaviorTreeComp)
+				{
+					BehaviorTreeComp->StopTree(); // Detiene el árbol de comportamiento
+				}
+			}
+
+		}
+
+	}
+
+	if (Weapon == "Melee") {
+
+
+		if (Life >= 0.f) {
+
+			if (!bResetDamage) {
+
+				Life = Life - 50.f;
+				bIsDamage = true;
+				bIsAlert = false;
+				bIsLooking = false;
+				bResetDamage = true;
+				GetWorld()->GetTimerManager().SetTimer(StopTimerHandle, this, &AEnemyCharacter::ResetTakingDamage, 1.f, false);
+
+			}
+
+		}
+		else {
+
 
 			bIsDie = true;
 			UE_LOG(LogTemp, Warning, TEXT("Enemigo Muertooooo"));
@@ -141,9 +207,22 @@ void AEnemyCharacter::GetEnenmyDamage(const FString& Weapon) {
 			{
 				MovementComponent->DisableMovement(); // Desactiva el movimiento
 			}
+			
+			AEnemyAIController* AIController = Cast<AEnemyAIController>(GetController());
+			if (AIController)
+			{
+				AIController->StopMovement();
+				//AIController->Unpossess(); // Desconecta el controlador del enemigo
+
+				UBehaviorTreeComponent* BehaviorTreeComp = Cast<UBehaviorTreeComponent>(AIController->GetBrainComponent());
+				if (BehaviorTreeComp)
+				{
+					BehaviorTreeComp->StopTree(); // Detiene el árbol de comportamiento
+				}
+			}
+
 
 		}
-
 	}
 
 

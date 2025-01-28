@@ -2,7 +2,8 @@
 
 
 #include "MeleeGunItem.h"
-
+#include "EnemyCharacter.h"
+#include "Kismet/GameplayStatics.h"
 
 AMeleeGunItem::AMeleeGunItem() {
 
@@ -11,4 +12,51 @@ AMeleeGunItem::AMeleeGunItem() {
 	ItemData.ItemName = "Bat";
 	ItemData.ItemDescription = "Firegun with a capacity of 15 bullets in its magazine ";
 
+
+
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Mesh->SetCollisionObjectType(ECC_WorldDynamic);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+
+
+    // Habilitar eventos de superposición
+    Mesh->SetGenerateOverlapEvents(true);
+
 }
+
+
+void AMeleeGunItem::BeginPlay()
+{
+    Super::BeginPlay();
+
+
+    if (Mesh)
+    {
+        Mesh->OnComponentBeginOverlap.AddDynamic(this, &AMeleeGunItem::OnMeshBeginOverlap);
+    }
+
+}
+
+
+void AMeleeGunItem::OnMeshBeginOverlap(UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
+{
+    UE_LOG(LogTemp, Log, TEXT("Overlpea con algo el MeleeGun"));
+
+    AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(OtherActor);
+    if (Enemy)
+    {
+        UE_LOG(LogTemp, Log, TEXT("MeleeGunItem impactó a: %s"), *Enemy->GetName());
+
+        // Aplica daño al enemigo
+        UGameplayStatics::ApplyDamage(Enemy, AttackDamage, nullptr, this, nullptr);
+    }
+}
+
+
+

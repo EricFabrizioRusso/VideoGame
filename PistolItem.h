@@ -18,7 +18,7 @@ public:
 	APistolItem();
 
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health Properties")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage Properties")
 	float AttackDamage;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")

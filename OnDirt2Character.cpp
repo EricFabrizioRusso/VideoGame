@@ -35,6 +35,18 @@
 #include "PistolItem.h"
 #include "MeleeGunItem.h"
 #include "Math/Vector.h"
+#include "Perception/AIPerceptionSystem.h"
+#include "Perception/AISense_Hearing.h"
+#include "GameOverWidget.h"
+#include "EnvironmentWidget.h"
+#include "NotificationWidget.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "Environment.h"
+#include "Components/PointLightComponent.h"
+#include "SaveGameCheckPoint.h"
+#include "CheckPoint.h"
+
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -103,7 +115,7 @@ AOnDirt2Character::AOnDirt2Character()
 	bIsBating= false;
 	bAimingMeleeGun = false;
 	bIsTakingDamage = false;
-
+	ResetMeleeDamage = false;
 
 	//LookUpDown
 	bIsAimingUp = false;
@@ -144,6 +156,9 @@ void AOnDirt2Character::BeginPlay()
 		InventoryHUDWidget = CreateWidget<UInventoryHUDWidget>(GetWorld(), InventoryHUDWidgetClass);
 
 	}
+
+
+
 
 
 	GetCharacterMovement()->MaxAcceleration = 600.f; // Ajusta según la suavidad deseada
@@ -233,6 +248,10 @@ void AOnDirt2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::ShowInventory);
 
 
+		//Restart
+		EnhancedInputComponent->BindAction(RestartAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Respawn);
+
+
 
 
 	}
@@ -246,48 +265,8 @@ void AOnDirt2Character::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
-	//FRotator YawRotation;
 
-	/*if (Controller != nullptr) {
-
-		if(!bAimingPistol){
-
-
-			// Verifica si se está utilizando una cámara fija
-			if (bUsingFixedCamera && FixedCameraActor)
-			{
-				// Obtiene la rotación de la cámara fija
-				YawRotation = FixedCameraActor->GetActorRotation();
-			}
-			else
-			{
-				// Obtiene la rotación del controlador (cámara libre)
-				const FRotator Rotation = Controller->GetControlRotation();
-				YawRotation = FRotator(0, Rotation.Yaw, 0); // Solo la rotación en el eje Yaw
-			}
-
-			// Obtiene el vector hacia adelante basado en la rotación
-			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-
-			// Obtiene el vector hacia la derecha basado en la rotación
-			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-			// Aquí se usan los inputs de movimiento de forma independiente para adelante/atrás y izquierda/derecha
-			// Asegúrate de que MovementVector.Y se use para el movimiento hacia adelante/atrás
-			// y MovementVector.X para el movimiento hacia los lados (izquierda/derecha)
-
-			// Para controles tipo tanque, el movimiento en la dirección Y (hacia adelante) sigue siendo relativo a la cámara,
-			// pero el movimiento en la dirección X (hacia los lados) es fijo en el espacio global.
-
-			AddMovementInput(ForwardDirection, MovementVector.Y);  // Movimiento hacia adelante/atrás
-			AddMovementInput(RightDirection, MovementVector.X);    // Movimiento hacia los lados (izquierda/derecha)
-
-
-
-		}
-
-	}*/
-
+	if (bIsDie || bIsHit) return;
 
 	if (Controller != nullptr)
 	{
@@ -389,6 +368,8 @@ void AOnDirt2Character::Look(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
+	if (bIsDie) return;
+
 	if (Controller != nullptr)
 	{
 
@@ -429,23 +410,33 @@ void  AOnDirt2Character::Crouching() {
 
 void AOnDirt2Character::ThrowOBJ() {
 
+	if (!bShootingPistol) {
 
+		if (bEquipedGun && bAimingPistol) {
 
-	if (bEquipedGun && bAimingPistol) {
+			
 
-		if (bShootingPistol) return;
-
-		PerformGunTrace();
-		UE_LOG(LogTemp, Warning, TEXT("Dispara dispara"));
-		GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetShootingFlag, 0.6f, false);
-	}
-
-	if (bEquipedMeleeGun && bAimingMeleeGun) {
-
-
-
+			PerformGunTrace();
+			UE_LOG(LogTemp, Warning, TEXT("Dispara dispara"));
+			bShootingPistol = true;
+			GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetShootingFlag, 1.2f, false);
+		}
 
 	}
+
+	if (!bIsBating) {
+
+		if (bEquipedMeleeGun && bIsBatIdle) {
+
+			//PerformBatTrace();
+			UE_LOG(LogTemp, Warning, TEXT("batea batea"));
+			bIsBating = true;
+			GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetBatFlag, 1.2f, false);
+
+		}
+
+	}
+
 
 	if (HeldObject && bIsAiming)
 	{
@@ -465,6 +456,11 @@ void AOnDirt2Character::ThrowOBJ() {
 void AOnDirt2Character::ResetShootingFlag()
 {
 	bShootingPistol = false; 
+}
+
+void AOnDirt2Character::ResetBatFlag()
+{
+	bIsBating = false;
 }
 
 
@@ -517,7 +513,7 @@ void  AOnDirt2Character::Aiming() {
 		if (!bIsTakingDamage) {
 
 			bAimingPistol = true;
-			UE_LOG(LogTemp, Warning, TEXT("Apunta."));
+			//UE_LOG(LogTemp, Warning, TEXT("Apunta."));
 
 			UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
 			if (MovementComponent)
@@ -531,8 +527,22 @@ void  AOnDirt2Character::Aiming() {
 
 	}
 
-	if (bEquipedMeleeGun) {
+	if (bEquipedMeleeGun && !bIsCrouched) {
 
+		if (!bIsTakingDamage) {
+
+			//bAimingMeleeGun = true;
+			bIsBatIdle = true;
+			//UE_LOG(LogTemp, Warning, TEXT("Apunta Melee."));
+
+			UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+			if (MovementComponent)
+			{
+				MovementComponent->DisableMovement(); // Desactiva el movimiento
+			}
+
+
+		}
 
 	}
 
@@ -610,6 +620,8 @@ void AOnDirt2Character::StopAiming()
 	bAimingPistol = false;
 	bIsAimingDown = false;
 	bIsAimingUp = false;
+	bIsBatIdle = false;
+	bIsBating = false;
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->SetMovementMode(MOVE_Walking);
 	UE_LOG(LogTemp, Warning, TEXT("Deja de apuntar."));
@@ -625,17 +637,13 @@ void AOnDirt2Character::PerformGunTrace() {
 		return;
 	}
 
-	bShootingPistol = true;
-	//UCharacterMovementComponent* Movement = GetCharacterMovement();
-	//Movement->DisableMovement();
-
 	// Obtener la posición y rotación del HandGunSocket
 	FVector Start = GetMesh()->GetSocketLocation(TEXT("HandGunSocket"));
 	FRotator SocketRotation = GetMesh()->GetSocketRotation(TEXT("HandGunSocket"));
 	FVector ForwardVector = SocketRotation.Vector(); // Dirección hacia donde apunta el socket
 
 	// Definir la distancia del raycast
-	float TraceDistance = 300.0f;
+	float TraceDistance = 600.0f;
 	FVector End = Start + (ForwardVector * TraceDistance);
 
 	// Configurar los parámetros del trazado
@@ -653,6 +661,33 @@ void AOnDirt2Character::PerformGunTrace() {
 		TraceParams
 	);
 
+
+	UPointLightComponent* PointLight = NewObject<UPointLightComponent>(this);
+	if (PointLight)
+	{
+		PointLight->AttachToComponent(GetMesh(), FAttachmentTransformRules::KeepRelativeTransform, TEXT("HandGunSocket"));
+		PointLight->SetIntensity(3000.0f); // Ajusta la intensidad
+		PointLight->SetAttenuationRadius(200.0f); // Ajusta el radio
+		PointLight->SetLightColor(FLinearColor::Yellow); // Color del destello
+		PointLight->RegisterComponent();
+
+		// Destruir el Point Light después de 0.5 segundos
+		FTimerHandle TimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(
+			TimerHandle,
+			[PointLight]()
+			{
+				if (PointLight)
+				{
+					PointLight->DestroyComponent();
+				}
+			},
+			0.2f, // Duración del destello
+			false
+		);
+	}
+
+
 	// Dibujar líneas de depuración para visualizar el trazado
 	if (bHit)
 	{
@@ -666,7 +701,21 @@ void AOnDirt2Character::PerformGunTrace() {
 			{
 				UE_LOG(LogTemp, Log, TEXT("¡Enemigo alcanzado! %s"), *HitEnemy->GetName());
 				HitEnemy->GetEnenmyDamage("Gun");
-				// Realiza cualquier acción adicional con el enemigo alcanzado
+
+
+				if (BloodEffect)
+				{
+					UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(),
+						BloodEffect,
+						HitResult.Location,         // Ubicación del impacto
+						HitResult.ImpactNormal.Rotation() // Rotación basada en la normal de la superficie
+					);
+				}
+
+
+
+
 			}
 			else
 			{
@@ -680,77 +729,125 @@ void AOnDirt2Character::PerformGunTrace() {
 		UE_LOG(LogTemp, Log, TEXT("No se impactó con ningún objeto."));
 	}
 
-	// Verificar que el socket exista en el SkeletalMesh
-	/*if (!GetMesh() || !GetMesh()->DoesSocketExist(TEXT("HandGunSocket")))
+	//Camera Shake
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (PlayerController && PlayerController->PlayerCameraManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Shaking making"));
+		PlayerController->PlayerCameraManager->StartCameraShake(UCameraShakeComponent::StaticClass());
+	}
+
+
+
+
+	if (LineShootEffect) {
+
+
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),
+			LineShootEffect,
+			Start,         // Ubicación del impacto
+			HitResult.ImpactNormal.Rotation() // Rotación basada en la normal de la superficie
+		);
+
+	}
+
+
+
+
+
+	// Generar un estímulo de sonido
+	UAISense_Hearing::ReportNoiseEvent(
+		GetWorld(),
+		Start,                 // Posición del ruido
+		1.0f,                  // Intensidad del ruido
+		this,                  // Instigador (quién hace el ruido)
+		0.0f,                  // Duración del ruido
+		TEXT("GunshotNoise")   // Tag opcional para identificar el tipo de ruido
+	);
+
+
+}
+
+void AOnDirt2Character::PerformBatTrace() {
+
+
+	// Verificar que el Mesh y el Socket existan
+	if (!GetMesh() || !GetMesh()->DoesSocketExist(TEXT("MeleeSocket")))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("HandGunSocket no existe en el SkeletalMesh del personaje."));
 		return;
 	}
 
-	// Activar estado de disparo
-	bShootingPistol = true;
 
-	// Obtener la posición y rotación del socket
-	FVector SocketLocation = GetMesh()->GetSocketLocation(TEXT("HandGunSocket"));
-	FRotator SocketRotation = GetMesh()->GetSocketRotation(TEXT("HandGunSocket"));
-	FVector ForwardVector = SocketRotation.Vector(); // Dirección hacia adelante
+	FVector HandLocation = GetMesh()->GetSocketLocation("MeleeSocket");
+	FVector EndLocation = HandLocation + GetActorForwardVector() * 2000.f;
 
-	// Altura de desplazamiento para las líneas (medio metro en ambas direcciones)
-	float VerticalOffset = 50.0f; // 50 unidades = 0.5 metros
-	float TraceDistance = 300.0f; // Distancia hacia adelante
 
-	// Array de alturas para los trazados (-0.5m, original, +0.5m)
-	TArray<float> VerticalOffsets = { -VerticalOffset, 0.0f, VerticalOffset };
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this); // Ignorar al propio enemigo
+	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, HandLocation, EndLocation, ECC_Visibility, CollisionParams);
 
-	for (float Offset : VerticalOffsets)
+
+	if (bHit)
 	{
-		// Calcular inicio y fin del trazado
-		FVector Start = SocketLocation + FVector(0, 0, Offset); // Mover hacia arriba/abajo
-		FVector End = Start + (ForwardVector * TraceDistance);  // Extender hacia adelante
+		AEnemyCharacter* HitActor = Cast<AEnemyCharacter>(HitResult.GetActor());
 
-		// Configurar los parámetros del trazado
-		FHitResult HitResult;
-		FCollisionQueryParams TraceParams;
-		TraceParams.bTraceComplex = true;
-		TraceParams.AddIgnoredActor(this); // Ignorar al personaje
 
-		// Ejecutar el Line Trace
-		bool bHit = GetWorld()->LineTraceSingleByChannel(
-			HitResult,
-			Start,
-			End,
-			ECC_Visibility, // Ajusta el canal de colisión según tus necesidades
-			TraceParams
-		);
+			UE_LOG(LogTemp, Warning, TEXT("Entra"));
 
-		// Dibujar líneas de depuración para visualizar los trazados
-		if (bHit)
-		{
-			DrawDebugLine(GetWorld(), Start, HitResult.Location, FColor::Red, false, 5.0f, 0, 1.0f);
-
-			if (HitResult.GetActor())
+			if (HitActor)
 			{
-				// Verificar si el actor impactado es un AEnemyCharacter
-				AEnemyCharacter* HitEnemy = Cast<AEnemyCharacter>(HitResult.GetActor());
-				if (HitEnemy)
-				{
-					UE_LOG(LogTemp, Log, TEXT("¡Enemigo alcanzado! %s"), *HitEnemy->GetName());
-					// Realiza cualquier acción adicional con el enemigo alcanzado
-				}
-				else
-				{
-					UE_LOG(LogTemp, Log, TEXT("Impacto con un objeto no válido: %s"), *HitResult.GetActor()->GetName());
-				}
+				
+
+					if (!bIsDie) {
+
+
+
+						APlayerController* PlayerController = Cast<APlayerController>(GetController());
+						if (PlayerController && PlayerController->PlayerCameraManager)
+						{
+							UE_LOG(LogTemp, Warning, TEXT("Shaking making"));
+							PlayerController->PlayerCameraManager->StartCameraShake(UCameraShakeComponent::StaticClass());
+						}
+
+						UE_LOG(LogTemp, Warning, TEXT("Hit Enemy"));
+						HitActor->GetEnenmyDamage("Melee");
+
+						if (BloodEffect)
+						{
+							UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+								GetWorld(),
+								BloodEffect,
+								HitResult.Location,         // Ubicación del impacto
+								HitResult.ImpactNormal.Rotation() // Rotación basada en la normal de la superficie
+							);
+						}
+
+
+
+					}
+
+
+				
 			}
-		}
-		else
-		{
-			DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 5.0f, 0, 1.0f);
-			UE_LOG(LogTemp, Log, TEXT("No se impactó con ningún objeto en la línea vertical offset: %f"), Offset);
-		}
-	}*/
+			else
+			{
 
 
+				UE_LOG(LogTemp, Warning, TEXT("Hit something else"));
+			}
+
+			UE_LOG(LogTemp, Warning, TEXT("Hit called"));
+
+		
+
+
+	}
+	//UE_LOG(LogTemp, Warning, TEXT("FunctionCalled"));
+
+	// Opcional: dibujar la línea para depuración
 
 
 
@@ -806,6 +903,27 @@ void AOnDirt2Character::GrabThrowOBJ()
 
 		
 		
+
+
+	}
+
+	if (OverlappingEnvironment && OverlappingEnvironment->bCanBeGrabbed) {
+
+		if (!EnvironmentWidget) {
+
+			EnvironmentWidget = CreateWidget<UEnvironmentWidget>(GetWorld(), EnvironmentWidgetClass);
+
+		}
+
+		if (EnvironmentWidget && !EnvironmentWidget->IsInViewport()) {
+			
+			EnvironmentWidget->DescriptionEnvironment->SetText(FText::FromString(OverlappingEnvironment->EnvironmentString));
+			EnvironmentWidget->AddToViewport();
+			GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
+
+		}
+
+
 
 
 	}
@@ -933,30 +1051,51 @@ void AOnDirt2Character::SetToRead(bool Value) {
 		}
 
 
-		if (HeldMeleeGunItem) {
+		if (OverlappingMeleeGunItem) {
 			InventoryComponent->PickUpItem(HeldMeleeGunItem);
+
+			HeldMeleeGunItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			HeldMeleeGunItem->SetActorEnableCollision(false); // Reactivar la colisión si es necesario
+			HeldMeleeGunItem->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+			HeldMeleeGunItem->SetActorTickEnabled(false);
+			OverlappingMeleeGunItem = nullptr;
+			// Añadir al root para evitar eliminación
+			HeldMeleeGunItem->AddToRoot();
+
 			//HeldMeleeGunItem = nullptr;
 			GetWorld()->GetFirstPlayerController()->SetPause(false);
 			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
 
+			UE_LOG(LogTemp, Warning, TEXT("Agarra Melee"));
+
 
 		}
 
-		if (HeldPistol) {
+		if (OverlappingPistolItem) {
 
 			InventoryComponent->PickUpItem(HeldPistol);
+			HeldPistol->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			HeldPistol->SetActorEnableCollision(false); // Reactivar la colisión si es necesario
+			HeldPistol->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+			HeldPistol->SetActorTickEnabled(false);
+			OverlappingPistolItem = nullptr;
 			//HeldPistol = nullptr;
+
+			HeldPistol->AddToRoot();
+
 			GetWorld()->GetFirstPlayerController()->SetPause(false);
 			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+
+			UE_LOG(LogTemp, Warning, TEXT("Agarra pistola"));
 		}
 
 	}
 	else {
 
-		HeldNote = nullptr;
-		HeldHealth = nullptr;
-		HeldPistol = nullptr;
-		HeldMeleeGunItem = nullptr;
+		//HeldNote = nullptr;
+		//HeldHealth = nullptr;
+		//HeldPistol = nullptr;
+		//HeldMeleeGunItem = nullptr;
 
 	}
 
@@ -992,6 +1131,7 @@ void AOnDirt2Character::DropOBJ() {
 void AOnDirt2Character::GetDamage() {
 
 
+	if (bIsTakingDamage) return;
 
 	APlayerController* PlayerController = Cast<APlayerController>(GetController());
 	if (PlayerController && PlayerController->PlayerCameraManager)
@@ -1000,22 +1140,42 @@ void AOnDirt2Character::GetDamage() {
 		PlayerController->PlayerCameraManager->StartCameraShake(UCameraShakeComponent::StaticClass());
 	}
 
+
+
 	bIsHit = true;
+	bIsPickUp = false;
+	bIsThrowing = false;
 	bAimingPistol = false;
+	bIsAimingUp = false;
+	bIsAimingDown = false;
 	bIsTakingDamage = true;
-	GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetTakingDamage, 0.4f, false);
-	/*if (!Life == 0) {
+	bIsShooting = false;
+	bIsBatIdle = false;
+	bIsBating = false;
+	GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetTakingDamage, 1.5f, false);
+
+
+	if (!Life == 0) {
 
 		Life = Life - 50;
 		UE_LOG(LogTemp, Warning, TEXT("Tienes vida"));
-		bIsHit = true;
 
 	}
 	else {
 
-		bIsDie = true;
 
-		//bIsCallEnemy = true;
+		bIsDie = true;
+		bIsHit = false;
+		bIsPickUp = false;
+		bIsThrowing = false;
+		bAimingPistol = false;
+		bIsAimingUp = false;
+		bIsAimingDown = false;
+		bIsTakingDamage = true;
+		bIsShooting = false;
+		bIsBatIdle = false;
+		bIsBating = false;
+		
 
 		for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
 		{
@@ -1026,12 +1186,12 @@ void AOnDirt2Character::GetDamage() {
 
 				if (BlackboardComp)
 				{
-					BlackboardComp->SetValueAsBool(TEXT("isDead"), true);
+					BlackboardComp->SetValueAsBool(TEXT("bIsDead"), true);
 				}
 			}
 		}
 
-		TArray<AActor*> PostProcessVolumes;
+		/*TArray<AActor*> PostProcessVolumes;
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), APostProcessVolume::StaticClass(), PostProcessVolumes);
 
 		for (AActor* Actor : PostProcessVolumes)
@@ -1050,19 +1210,42 @@ void AOnDirt2Character::GetDamage() {
 				// Por ejemplo:
 				// PostProcessSettings.GrainIntensity = 0.5f;
 			}
+		}*/
+
+
+		if (!GameOverWidget) {
+
+			GameOverWidget = CreateWidget<UGameOverWidget>(GetWorld(), GameOverWidgetClass);
+
+
+
+		}
+
+		if (GameOverWidget && !GameOverWidget->IsInViewport()) {
+
+
+			GameOverWidget->AddToViewport();
+
+			UE_LOG(LogTemp, Warning, TEXT("Añade al viewport"));
+		}
+
+		UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+		if (MovementComponent)
+		{
+			MovementComponent->DisableMovement(); // Desactiva el movimiento
 		}
 
 
 
 
-
-		GetCharacterMovement()->DisableMovement();
 		UE_LOG(LogTemp, Warning, TEXT("You're Dead"));
 
 
-	}*/
+	}
 
 }
+
+
 void AOnDirt2Character::ResetTakingDamage() {
 
 	bIsTakingDamage = false;
@@ -1082,11 +1265,15 @@ void AOnDirt2Character::Die()
 
 void AOnDirt2Character::Respawn()
 {
+
+	if (!bIsDie) return;
+
 	AController* LocalController = GetController();
 	if (LocalController)
 	{
 		// Respawn the character at the last checkpoint location
 		SetActorLocation(LastCheckpointLocation);
+
 
 		// Optionally, reset other necessary attributes like health, inventory, etc.
 		// Example: Reset health
@@ -1095,6 +1282,64 @@ void AOnDirt2Character::Respawn()
 		// Possess the character again
 		Controller->Possess(this);
 	}
+
+	Life = 100;
+	bIsDie = false;
+
+	if (GameOverWidget && GameOverWidget->IsInViewport()) {
+
+
+		GameOverWidget->RemoveFromParent();
+
+		UE_LOG(LogTemp, Warning, TEXT("Quita al viewport"));
+
+	}
+
+
+	if (USaveGameCheckPoint* SaveGameInstance = Cast<USaveGameCheckPoint>(UGameplayStatics::LoadGameFromSlot(TEXT("CheckPointSaveSlot"), 0)))
+	{
+		// Restaurar la posición del jugador
+		SetActorLocation(SaveGameInstance->PlayerLocation);
+
+		// Restaurar el inventario
+		if (InventoryComponent) // Acceso directo al componente
+		{
+			InventoryComponent->SetInventoryItems(SaveGameInstance->CollectedItems);
+		}
+
+		// Restaurar los enemigos vivos
+		TArray<AActor*> EnemyActors;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AEnemyCharacter::StaticClass(), EnemyActors);
+
+		for (AActor* Enemy : EnemyActors)
+		{
+			if (AEnemyCharacter* EnemyActor = Cast<AEnemyCharacter>(Enemy))
+			{
+				// Comparar las ubicaciones para restaurar enemigos vivos
+				for (const FVector& SavedLocation : SaveGameInstance->EnemyLocations)
+				{
+					if (FVector::Dist(SavedLocation, EnemyActor->GetActorLocation()) < 1.0f) // Tolerancia pequeña para evitar errores de precisión
+					{
+						EnemyActor->bIsDie= false; // Método personalizado para revivir al enemigo
+						break;
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		// Si no hay datos de guardado, reiniciar nivel desde 0
+		UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()), false);
+	}
+
+
+
+
+
+
+
+		
 }
 
 
@@ -1105,13 +1350,13 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 	if (OtherActor->IsA(AThrowOBJ::StaticClass()))
 	{
 		OverlappingThrowOBJ = Cast<AThrowOBJ>(OtherActor);
-		UE_LOG(LogTemp, Warning, TEXT("OVERLAP"));
+		//UE_LOG(LogTemp, Warning, TEXT("OVERLAP"));
 	}
 
 	if (OtherActor->IsA(ANotesToRead::StaticClass())) {
 
 		OverlappingNote = Cast<ANotesToRead>(OtherActor);
-		UE_LOG(LogTemp, Warning, TEXT("OVERLAP NOTE"));
+		//UE_LOG(LogTemp, Warning, TEXT("OVERLAP NOTE"));
 
 	}
 
@@ -1132,7 +1377,7 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 	{
 		
 		OverlappingHealthItem = Cast<AHealthItem>(OtherActor);
-		UE_LOG(LogTemp, Warning, TEXT("OVERLAP Health"));
+		//UE_LOG(LogTemp, Warning, TEXT("OVERLAP Health"));
 
 	}
 
@@ -1140,7 +1385,7 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 	{
 
 		OverlappingMeleeGunItem = Cast<AMeleeGunItem>(OtherActor);
-		UE_LOG(LogTemp, Warning, TEXT("OVERLAP MeleeGun"));
+		//UE_LOG(LogTemp, Warning, TEXT("OVERLAP MeleeGun"));
 
 	}
 
@@ -1148,7 +1393,15 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 	{
 
 		OverlappingPistolItem = Cast<APistolItem>(OtherActor);
-		UE_LOG(LogTemp, Warning, TEXT("OVERLAP FireGun"));
+		//UE_LOG(LogTemp, Warning, TEXT("OVERLAP FireGun"));
+
+	}
+
+	if (OtherActor->IsA(AEnvironment::StaticClass()))
+	{
+
+		OverlappingEnvironment = Cast<AEnvironment>(OtherActor);
+		
 
 	}
 
@@ -1164,14 +1417,14 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 	
 		OverlappingThrowOBJ = nullptr;
 		
-		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP"));
+		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP"));
 	}
 
 	if (HeldNote == nullptr) {
 
 		OverlappingThrowOBJ = nullptr;
 
-		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
+		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
 
 	}
 
@@ -1179,7 +1432,7 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 
 		OverlappingHealthItem = nullptr;
 
-		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
+		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP NOTE"));
 
 	}
 
@@ -1187,7 +1440,7 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 
 		OverlappingHealthItem = nullptr;
 
-		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP MeleeGun"));
+		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP MeleeGun"));
 
 	}
 
@@ -1195,8 +1448,10 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 
 		OverlappingPistolItem = nullptr;
 
-		UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP Gun"));
+		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP Gun"));
 	}
+
+
 }
 
 //Animations -----------------------------------------------
@@ -1278,6 +1533,13 @@ bool AOnDirt2Character::GetAimingGunDown()const {
 
 
 //MeleeGun
+void AOnDirt2Character::SetBating(bool Value){
+
+
+	bIsBating= Value;
+
+}
+
 bool AOnDirt2Character::GetBatIdle() const {
 
 
@@ -1285,12 +1547,6 @@ bool AOnDirt2Character::GetBatIdle() const {
 
 }
 
-void AOnDirt2Character::SetBating(bool Value){
-
-
-	bIsBating= Value;
-
-}
 
 bool AOnDirt2Character::GetBating() const{
 
@@ -1461,7 +1717,12 @@ FString AOnDirt2Character::GetPickUpItem() {
 
 void AOnDirt2Character::ShowInventory()
 {
+
+	if (bIsDie) return;
+
 	if (PauseMenu && PauseMenu->IsInViewport()) return;
+
+
 
 
 	if (bAllowInventary) {
@@ -1547,6 +1808,15 @@ void  AOnDirt2Character::SetUseItem() {
 
 			bEquipedMeleeGun = false;
 
+			HeldMeleeGunItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			HeldMeleeGunItem->SetActorEnableCollision(true); // Reactivar la colisión si es necesario
+			HeldMeleeGunItem->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+			HeldMeleeGunItem->SetActorTickEnabled(true);
+
+
+			// Añadir al root para evitar eliminación
+			HeldMeleeGunItem->AddToRoot();
+
 		}
 
 		if (bEquipedGun) {
@@ -1629,32 +1899,95 @@ void  AOnDirt2Character::SetUseItem() {
 
 	}
 
-	if (ItemName == "bat") {
+	if (ItemName == "Bat") {
 
 		if (bEquipedGun) {
 
 			bEquipedGun = false;
+
+			HeldPistol->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			HeldPistol->SetActorEnableCollision(false); // Reactivar la colisión si es necesario
+			HeldPistol->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+			HeldPistol->SetActorTickEnabled(true);
+
+
+			// Añadir al root para evitar eliminación
+			HeldPistol->AddToRoot();
+
+		}
+
+		if (bEquipedMeleeGun) {
+
+			
+			if (HeldMeleeGunItem) {
+
+				//El arma ya esta equipada
+				UE_LOG(LogTemp, Error, TEXT("El arma ya esta equipada"));
+				bEquipedMeleeGun = false;
+				HeldMeleeGunItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+				HeldMeleeGunItem->SetActorEnableCollision(true); // Reactivar la colisión si es necesario
+				HeldMeleeGunItem->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+				HeldMeleeGunItem->SetActorTickEnabled(true);
+
+
+				// Añadir al root para evitar eliminación
+				HeldMeleeGunItem->AddToRoot();
+
+
+
+			}
+			else {
+
+				UE_LOG(LogTemp, Error, TEXT("El arma no existe en memoria"));
+			}
+
+		}
+		else {
+			
+
+			bEquipedMeleeGun = true;
+
+			if (HeldMeleeGunItem) {
+
+
+
+				HeldMeleeGunItem->SetActorHiddenInGame(false); // Hacer visible el arma
+				HeldMeleeGunItem->SetActorTickEnabled(true);  // Reactivar el tick si es necesario
+				HeldMeleeGunItem->Mesh->SetSimulatePhysics(false);
+				HeldMeleeGunItem->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("MeleeSocket"));
+				HeldMeleeGunItem->SetActorEnableCollision(false);
+
+				HeldMeleeGunItem->RemoveFromRoot();
+
+
+
+
+
+			}
+			else {
+				UE_LOG(LogTemp, Error, TEXT("El arma no existe en memoria"));
+
+			}
 
 		}
 
 		if (bEquipedMeleeGun) {
 
 
-			//El arma ya esta equipada
-			return;
+			//ItemsOptionsWidget->UpdateText(false);
+			UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
 
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
 		}
 		else {
-			
-			bEquipedMeleeGun = true;
 
-			HeldMeleeGunItem->Mesh->SetSimulatePhysics(false);
-			HeldMeleeGunItem->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("HandSocket"));
-			HeldMeleeGunItem->SetActorEnableCollision(false);
 
-			//Logica Melee gun en mano
+			UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
+			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
 
 		}
+
+
 		
 
 
@@ -1740,8 +2073,26 @@ void  AOnDirt2Character::SetDropItem() {
 
 	if (ItemName == "Gun") {
 
-		UE_LOG(LogTemp, Warning, TEXT("Cant drop FIREGUN"));
-		return;
+		if (!NotificationWidget){
+
+			NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
+
+			UE_LOG(LogTemp, Error, TEXT("Se Crea Noti"));
+
+
+		}
+
+		if (NotificationWidget && !NotificationWidget->IsInViewport()) {
+
+			NotificationWidget->DescriptionNotification->SetText(FText::FromString("Can't Drop Item"));
+			NotificationWidget->AddToViewport();
+			UE_LOG(LogTemp, Error, TEXT("Se añade noti"));
+			GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
+
+
+		}
+
+		
 
 	}
 
@@ -1754,11 +2105,16 @@ void  AOnDirt2Character::SetDropItem() {
 			if (InventoryComponent->Inventory[i].ItemName == ItemName)
 			{
 				InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+				HeldMeleeGunItem->RemoveFromRoot();
+				HeldMeleeGunItem->Destroy();
 				HeldMeleeGunItem = nullptr;
 				UE_LOG(LogTemp, Warning, TEXT("Item Eliminado"));
 			}
 
 		}
+
+		
+		
 
 		if (InventoryHUDWidget)
 		{
@@ -1819,7 +2175,27 @@ void  AOnDirt2Character::SetDropItem() {
 		UE_LOG(LogTemp, Error, TEXT("No puedes eliminar este item"));
 
 
-		if (InventoryHUDWidget)
+		if (!NotificationWidget) {
+
+			NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
+
+			UE_LOG(LogTemp, Error, TEXT("Se Crea Noti"));
+
+
+		}
+
+		if (NotificationWidget && !NotificationWidget->IsInViewport()) {
+
+			NotificationWidget->DescriptionNotification->SetText(FText::FromString("Can't Drop this Item"));
+			NotificationWidget->AddToViewport();
+			UE_LOG(LogTemp, Error, TEXT("Se añade noti"));
+			GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
+
+
+		}
+
+
+		/*if (InventoryHUDWidget)
 		{
 			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
 		}
@@ -1834,13 +2210,35 @@ void  AOnDirt2Character::SetDropItem() {
 
 			ItemsOptionsWidget->RemoveFromParent();
 
-		}
+		}*/
 		return;
 	}
 
 
 
 }
+
+void AOnDirt2Character::RemoveWidgets() {
+
+	if (NotificationWidget && NotificationWidget->IsInViewport()) {
+
+
+		NotificationWidget->RemoveFromParent();
+		NotificationWidget = nullptr;
+		UE_LOG(LogTemp, Warning, TEXT("Widget Noti eliminado del viewport."));
+
+	}
+
+	if (EnvironmentWidget && EnvironmentWidget->IsInViewport()) {
+
+		EnvironmentWidget->RemoveFromParent();
+		EnvironmentWidget = nullptr;
+		UE_LOG(LogTemp, Warning, TEXT("WidgetEnviroment eliminado del viewport."));
+
+	}
+
+}
+
 
 void AOnDirt2Character::SetText(const FString& Name, const FString& Desc) {
 
@@ -1950,6 +2348,30 @@ void AOnDirt2Character::EndPlay(const EEndPlayReason::Type EndPlayReason) {
 		HeldPistol->RemoveFromRoot();
 		HeldPistol = nullptr; // Limpia la referencia
 	}
+
+	if (HeldMeleeGunItem) {
+
+
+		HeldMeleeGunItem->RemoveFromRoot();
+		HeldMeleeGunItem = nullptr;
+	}
+
+
+	// Nombre del slot que deseas borrar
+	FString SaveSlotName = TEXT("CheckPointSaveSlot");
+
+	// Eliminar el slot de guardado
+	if (UGameplayStatics::DoesSaveGameExist(SaveSlotName, 0))
+	{
+		UGameplayStatics::DeleteGameInSlot(SaveSlotName, 0);
+		UE_LOG(LogTemp, Warning, TEXT("Checkpoint eliminado del slot: %s"), *SaveSlotName);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No se encontró el checkpoint para eliminar."));
+	}
+
+
 
 	UE_LOG(LogTemp, Warning, TEXT("EndPlay llamado. Se ha liberado HeldPistol."));
 }

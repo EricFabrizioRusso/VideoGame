@@ -7,12 +7,12 @@
 UCameraShakeComponent::UCameraShakeComponent() {
 
 
-    OscillationDuration = 0.25f;  // Duración del shake
-    OscillationBlendInTime = 0.05f;
-    OscillationBlendOutTime = 0.05f;
+    OscillationDuration = 0.20f;  // Duración del shake
+    OscillationBlendInTime = 0.02f;
+    OscillationBlendOutTime = 0.02f;
 
     RotOscillation.Pitch.Amplitude = 1.0f;
-    RotOscillation.Pitch.Frequency = 10.0f;
+    RotOscillation.Pitch.Frequency = 5.0f;
 
     RotOscillation.Yaw.Amplitude = 0.5f;  // Amplitud del shake en el eje Yaw
     RotOscillation.Yaw.Frequency = 10.0f; // Frecuencia del shake en el eje Yaw
@@ -20,5 +20,12 @@ UCameraShakeComponent::UCameraShakeComponent() {
     RotOscillation.Roll.Amplitude = 0.0f;
     RotOscillation.Roll.Frequency = 0.0f;
 
+ 
 
+}
+
+
+void UCameraShakeComponent::SetOscillationDuration(float NewDuration)
+{
+    OscillationDuration = NewDuration;
 }

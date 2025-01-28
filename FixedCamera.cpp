@@ -5,11 +5,13 @@
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "OnDirt2Character.h"
+#include "CineCameraComponent.h"
 
 AFixedCamera::AFixedCamera(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
 {
     // Ensure the RootComponent is created if it hasn't been already
-    if (!RootComponent)
+
+    /*if (!RootComponent)
     {
         RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
     }
@@ -18,7 +20,34 @@ AFixedCamera::AFixedCamera(const FObjectInitializer& ObjectInitializer) :Super(O
     BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
     //BoxComponent->SetupAttachment(RootComponent);
     // Configurar el BoxComponent como estático
-    BoxComponent->SetMobility(EComponentMobility::Static);
+
+    BoxComponent->SetMobility(EComponentMobility::Movable);*/
+
+    // Asegúrate de que el RootComponent sea un componente de escena
+
+        // Usa el RootComponent existente de ACineCameraActor
+    USceneComponent* ExistingRootComponent = GetRootComponent();
+    if (!ExistingRootComponent)
+    {
+        // Si no hay RootComponent, crea uno como fallback (raro en ACineCameraActor)
+        ExistingRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+        SetRootComponent(ExistingRootComponent);
+    }
+
+    // Crea el BoxComponent y adjúntalo al RootComponent del actor
+    BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
+    BoxComponent->SetupAttachment(ExistingRootComponent);  // Adjuntar al RootComponent del ACineCameraActor
+
+    // Configura el BoxComponent como movible
+    BoxComponent->SetMobility(EComponentMobility::Movable);
+
+    // Configura otras propiedades del BoxComponent si es necesario
+    BoxComponent->SetBoxExtent(FVector(100.0f, 100.0f, 100.0f)); // Ejemplo de tamaño del box
+    BoxComponent->SetCollisionProfileName(TEXT("OverlapAll"));  // Configura un perfil de colisión
+
+
+
+
 
 
 }
