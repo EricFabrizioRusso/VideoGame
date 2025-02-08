@@ -7,15 +7,18 @@
 #include "OptionsWidget.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class ONDIRT2_API UOptionsWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
     virtual void NativeConstruct() override;
+
+
+    bool Language;
 
 protected:
     UPROPERTY(meta = (BindWidget))
@@ -49,6 +52,47 @@ protected:
     class UTextBlock* ShadowText;
 
 
+    UPROPERTY(meta = (BindWidget))
+    class UButton* LanguageLeftArrowButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UButton* LanguageRightArrowButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* LanguageText;
+
+
+
+    //Texts
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* MainOptionsText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* MainResolutionText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* MainTexturesText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* MainShadowsText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* MainLanguageText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* BackBtnText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* ApplyBtnText;
+
+    //Volumen
+    UPROPERTY(meta = (BindWidget))
+    class USlider* MasterVolumeSlider;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* VolumeText;
+
+
     UFUNCTION()
     void OnLeftArrowClicked();
 
@@ -70,6 +114,21 @@ protected:
     UFUNCTION()
     void OnShadowRightArrowClicked();
 
+    UFUNCTION()
+    void OnLanguageLeftArrowClicked();
+
+    UFUNCTION()
+    void OnLanguageRightArrowClicked();
+
+
+    //Volumen
+    UFUNCTION()
+    void OnMasterVolumeChanged(float Value);
+
+
+    UFUNCTION(BlueprintCallable, Category = "Settings")
+    static float GetMasterVolume();
+
 private:
     TArray<FString> Resolutions;
     int32 CurrentResolutionIndex;
@@ -80,8 +139,23 @@ private:
     TArray<FString> ShadowQualities;
     int32 CurrentShadowQualityIndex;
 
+    TArray<FString> SelectLanguages;
+    int32 CurrentLanguageIndex;
+
+
+    class AOnDirt2Character* PlayerCharacter;
+
+
+    //Connections
+    class UPauseMenuWidget* PauseMenuWidget;
+
     void UpdateResolutionText();
     void UpdateTextureText();
     void UpdateShadowText();
-	
+    void UpdateLanguageText();
+    void UpdateTexts();
+
+
 };
+	
+

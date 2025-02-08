@@ -17,18 +17,26 @@ class ONDIRT2_API UItemsOptionsWidget : public UUserWidget
 public:
 
 
-    UPROPERTY(meta = (BindWidget))
-    class UButton* UseBtn; 
-
-
-	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* EquipText;
-
 	//UPROPERTY(meta = (BindWidget))
 	//class UButton* CombineButton; 
 
+
+    UPROPERTY(meta = (BindWidget))
+    class UButton* UseBtn; 
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* UseText;
+
+
+	//UPROPERTY(meta = (BindWidget))
+	//class UTextBlock* EquipText;
+
+
 	UPROPERTY(meta = (BindWidget))
 	class UButton* DropBtn; 
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* DropText;
 
 	class AOnDirt2Character* PlayerCharacter;
 
@@ -40,5 +48,7 @@ public:
 
 	UFUNCTION()
 	void OnDropClicked();
+
+	void UpdateTexts(FString Language);
 	
 };

@@ -23,6 +23,7 @@ public:
 
  
 
+   virtual void UpdateTexts(FString Language) override;
 
 	
 };

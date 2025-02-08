@@ -4,14 +4,18 @@
 #include "PistolItem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
+#include "OnDirt2Character.h"
+#include "Kismet/GameplayStatics.h"
 
 APistolItem::APistolItem() {
 
 
 	AttackDamage = 50.0f;
+    Ammunation = 5;
+	ItemData.Quantity = 1;
 
-	ItemData.ItemName = "Pistol";
-	ItemData.ItemDescription = "Firegun with a capacity of 15 bullets in its magazine ";
+	//ItemData.ItemName = "Pistol";
+	//ItemData.ItemDescription = "Firegun with a capacity of 15 bullets in its magazine ";
 
 
     // Crear un componente de escena para representar el MuzzleSocket
@@ -22,12 +26,62 @@ APistolItem::APistolItem() {
     MuzzleSocketComponent->SetRelativeRotation(FRotator(0.f, 0.f, 0.f)); // Ajustar la rotación si es necesario
     MuzzleSocketComponent->SetupAttachment(Mesh); // GunMesh es un componente existente en el actor
     MuzzleSocketComponent->SetMobility(EComponentMobility::Movable);
+
+
+
+
+
+
+
 }
 
 
 void APistolItem::BeginPlay()
 {
     Super::BeginPlay();
+
+	FString SavedLanguage;
+	if (GConfig->GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("SelectedLanguage"),
+		SavedLanguage, GGameUserSettingsIni))
+	{
+		UpdateTexts(SavedLanguage);
+	}
+	else
+	{
+		UpdateTexts("English"); // Por defecto
+	}
+
+
+}
+
+
+
+void APistolItem::UpdateTexts(FString Language) {
+
+
+
+	if (Language == "Spanish") {
+
+
+		ItemData.ItemName = "Pistola";
+		ItemData.ItemDescription = "Arma de fuego con capacidad de 10 balas en su cargador";
+
+
+	}
+	else {
+
+
+		ItemData.ItemName = "Pistol";
+		ItemData.ItemDescription = "Firegun with a capacity of 10 bullets in magazine ";
+
+
+
+	}
+
+
+
+
+
 
 
 }

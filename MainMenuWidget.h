@@ -4,13 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "PickUpItemWidget.generated.h"
+#include "MainMenuWidget.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class ONDIRT2_API UPickUpItemWidget : public UUserWidget
+class ONDIRT2_API UMainMenuWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
@@ -19,19 +19,19 @@ public:
 
 	virtual void NativeConstruct() override;
 
-	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* ItemName;
-
-
-	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* YesText;
-
-
-	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* NoText;
-
-	void SetItemName(FString NewText);
-	
 	void UpdateTexts(FString Language);
+
+
+protected:
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* NewGameText;
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* OptionsText;
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* QuitText;
+
 
 };

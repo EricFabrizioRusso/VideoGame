@@ -13,5 +13,24 @@ UCLASS()
 class ONDIRT2_API AKeyItem : public AInventoryItems
 {
 	GENERATED_BODY()
+
+
+public: 
+
+	AKeyItem();
+
+
+
+	void UpdateTexts(FString Language);
+
+
+	FString AcessDoor;
+
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
 	
 };
+
+

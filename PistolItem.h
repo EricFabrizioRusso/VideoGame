@@ -18,11 +18,19 @@ public:
 	APistolItem();
 
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage Properties")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pistol Properties")
 	float AttackDamage;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* MuzzleSocketComponent;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pistol Properties")
+	int32 Ammunation;
+
+
+	virtual void UpdateTexts(FString Language) override;
+
 
 protected:
 	// Called when the game starts or when spawned

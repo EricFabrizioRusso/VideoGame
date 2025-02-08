@@ -98,3 +98,11 @@ void AInventoryItems::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
     }
 }
 
+
+void AInventoryItems::UpdateTexts(FString Language) {
+
+
+
+
+}
+

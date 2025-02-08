@@ -14,7 +14,18 @@
 
 void UInventoryHUDWidget::NativeConstruct() {
 
+    Super::NativeConstruct();
 
+    FString SavedLanguage;
+    if (GConfig->GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("SelectedLanguage"),
+        SavedLanguage, GGameUserSettingsIni))
+    {
+        UpdateTexts(SavedLanguage);
+    }
+    else
+    {
+        UpdateTexts("English"); // Por defecto
+    }
 
 
 }
@@ -50,6 +61,29 @@ void UInventoryHUDWidget::PopulateInventory(const TArray<FInventoryItemData>& It
             InventoryList->AddChild(InventoryItemWidget);
 
         }
+
+    }
+
+
+}
+
+
+void UInventoryHUDWidget::UpdateTexts(FString Language) {
+
+
+
+    if (Language == "Spanish") {
+
+        InventaryText->SetText(FText::FromString("Inventario"));
+
+
+    }
+    else {
+
+
+        InventaryText->SetText(FText::FromString("Inventary"));
+
+
 
     }
 

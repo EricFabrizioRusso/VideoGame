@@ -13,5 +13,19 @@ UCLASS()
 class ONDIRT2_API AAmmoItem : public AInventoryItems
 {
 	GENERATED_BODY()
+
+
+public:
+
+
+	AAmmoItem();
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AmmoAmount")
+	int32 AmmoAmount;
+
+
+
+	void UpdateTexts(FString Language);
 	
 };

@@ -55,7 +55,7 @@ public:
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 
-
+	virtual void UpdateTexts(FString Language);
 
 	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Properties")
 	FName ItemName;

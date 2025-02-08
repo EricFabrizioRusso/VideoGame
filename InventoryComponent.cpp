@@ -109,3 +109,91 @@ void UInventoryComponent::SetInventoryItems(const TArray<FInventoryItemData>& Ne
 
 
 
+void UInventoryComponent::UpdateItemsLanguage()
+{
+    FString CurrentLanguage;
+    if (!GConfig->GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("SelectedLanguage"),
+        CurrentLanguage, GGameUserSettingsIni))
+    {
+        CurrentLanguage = "English"; // Idioma por defecto
+    }
+
+    for (FInventoryItemData& Item : Inventory)
+    {
+        if (Item.ItemName == "Pistol" || Item.ItemName == "Pistola") // Verifica si es la pistola
+        {
+            if (CurrentLanguage == "Spanish")
+            {
+                Item.ItemName = "Pistola";
+                Item.ItemDescription = "Arma de fuego con capacidad de 10 balas en su cargador";
+            }
+            else
+            {
+                Item.ItemName = "Pistol";
+                Item.ItemDescription = "Firegun with a capacity of 10 bullets in its magazine";
+            }
+
+            UE_LOG(LogTemp, Warning, TEXT("Pistol name updated to: %s"), *Item.ItemName.ToString());
+        }
+
+
+        if (Item.ItemName == "Bat" || Item.ItemName == "Bate") // Verifica si es la pistola
+        {
+            if (CurrentLanguage == "Spanish")
+            {
+                Item.ItemName = "Bate";
+                Item.ItemDescription = "Arma cuerpo a cuerpo efectiva a corto alcance pero mas poderosa que un arma de fuego";
+            }
+            else
+            {
+                Item.ItemName = "Bat";
+                Item.ItemDescription = "Melee weapon efective in short encounters but most powerful than fireguns";
+            }
+
+            UE_LOG(LogTemp, Warning, TEXT("Pistol name updated to: %s"), *Item.ItemName.ToString());
+        }
+
+
+        if (Item.ItemName == "Key" || Item.ItemName == "Llave") // Verifica si es la pistola
+        {
+            if (CurrentLanguage == "Spanish")
+            {
+                Item.ItemName = "Llave";
+                Item.ItemDescription = "Se puede usar para abrir una puerta";
+            }
+            else
+            {
+                Item.ItemName = "Key";
+                Item.ItemDescription = "You can use it to unlock a door";
+            }
+
+            UE_LOG(LogTemp, Warning, TEXT("Pistol name updated to: %s"), *Item.ItemName.ToString());
+        }
+
+        if (Item.ItemName == "Healthy Drink" || Item.ItemName == "Bebida saludable") // Verifica si es la pistola
+        {
+            if (CurrentLanguage == "Spanish")
+            {
+                Item.ItemName = "Bebida saludable";
+                Item.ItemDescription = "Restura un 50% de tu salud";
+            }
+            else
+            {
+                Item.ItemName = "Healthy Drink";
+                Item.ItemDescription = "Restores 50% of your life";
+            }
+
+            UE_LOG(LogTemp, Warning, TEXT("Pistol name updated to: %s"), *Item.ItemName.ToString());
+        }
+
+
+
+
+    }
+
+   
+   
+}
+
+
+

@@ -24,6 +24,9 @@ public:
     class UVerticalBox* InventoryList;
 
 
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* InventaryText;
+
    /* UPROPERTY(meta = (BindWidget))
     class UButton* UseBtn;
 
@@ -45,5 +48,7 @@ public:
     UInventoryItemWidget* InventoryItemWidget;
 
     virtual void NativeConstruct() override;
+
+    void UpdateTexts(FString Language);
 	
 };

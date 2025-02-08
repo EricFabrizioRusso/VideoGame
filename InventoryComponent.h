@@ -55,6 +55,11 @@ public:
 	// Reemplazar los datos del inventario
 	void SetInventoryItems(const TArray<FInventoryItemData>& NewInventory);
 
+
+	void UpdateItemsLanguage();
+
+	
+
 		
 };
 

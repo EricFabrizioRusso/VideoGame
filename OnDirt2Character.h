@@ -23,8 +23,17 @@ class UGameOverWidget;
 class UEnvironmentWidget;
 class UNotificationWidget;
 class UNiagaraSystem;
+class UPauseMenuWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+
+
+
+
+
+
+
+
 
 
 UCLASS(config=Game)
@@ -90,6 +99,14 @@ class AOnDirt2Character : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* RestartAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* ReloadAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* FirstPersonAction;
+
+
+
 	UPROPERTY(EditDefaultsOnly, Category = "Grab")
 	FName HandSocketName = "HandSocket";
 
@@ -143,12 +160,19 @@ public:
 	class APistolItem* OverlappingPistolItem;
 	class APistolItem* HeldPistol;
 
+	//Gun Ammo
+	class AAmmoItem* OverlappingPistolAmmo;
+	class AAmmoItem* HeldPistolAmmo;
+
 	//MeleeWeapon
 	class AMeleeGunItem* OverlappingMeleeGunItem;
 	class AMeleeGunItem* HeldMeleeGunItem;
 
 	//Interact Environment
 	class AEnvironment* OverlappingEnvironment;
+
+	//Interact Doors
+	class AAccessLevelTriggerActor* OverlappingAccessToLevel;
 
 
 	// Función para agarrar el objeto
@@ -233,6 +257,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	bool GetShootingPistol() const;
 
+	
+	//Reload Animation
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SetReloadAnimation(bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	bool GetReloadAnimation() const;
+
+
+
 	//Pistol Crouch
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	void SetShootingCrouch(bool Value);
@@ -261,10 +295,8 @@ public:
 
 
 	//Language
-	/*UFUNCTION(BlueprintCallable, Category = "Animation")
-	bool SelectLanguage() const;
-
-	bool Language;*/
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SelectLanguage(bool Value);
 
 
 	//Widgets
@@ -282,6 +314,39 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void  SetDropItem();
+
+
+	//Sound Sistem
+	UFUNCTION(BlueprintCallable, Category = "Sound Effect")
+	void PlayFootstepSound();
+	USoundCue* GetFootstepSoundForMaterial(UPhysicalMaterial* PhysMaterial);
+
+
+	// Materiales físicos
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	class UPhysicalMaterial* PM_Dirt;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	UPhysicalMaterial* PM_Grass;
+
+	/*UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	UPhysicalMaterial* PM_Wood;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	UPhysicalMaterial* PM_Metal;*/
+
+	// Sonidos de pasos
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	class USoundCue* FootstepDirtSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	USoundCue* FootstepGrassSound;
+
+	/*UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	USoundCue* FootstepMetalSound;*/
+
+	UPROPERTY(EditDefaultsOnly, Category = "Footsteps")
+	class USoundCue* DefaultFootstepSound;
 
 
 
@@ -342,6 +407,8 @@ private:
 	void ResetShootingFlag();
 	void ResetBatFlag();
 	void ResetTakingDamage();
+	void ReloadWeapon();
+	void SetFirstPerson();
 
 
 	UFUNCTION()
@@ -398,6 +465,9 @@ private:
 	bool bIsBating;
 	bool bIsTakingDamage;
 	bool ResetMeleeDamage;
+	bool bIsReloading;
+	bool FirstPersonActivate;
+	bool Language;
 
 
 
@@ -456,11 +526,11 @@ private:
 
 
 	UPROPERTY()
-	UUserWidget* PauseMenu;
+	UPauseMenuWidget* PauseMenu;
 	UPROPERTY()
 	UUserWidget* OptionsMenu;
 	UPROPERTY()
-	UNotesToReadWidget* ReadNoteWidget;
+class UNotesToReadWidget* ReadNoteWidget;
 	UPROPERTY()
 	UPickUpItemWidget* PickUpItemWidget;
 	UPROPERTY()

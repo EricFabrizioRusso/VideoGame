@@ -19,6 +19,9 @@ public:
 
 	AMeleeGunItem();
 
+
+	virtual void UpdateTexts(FString Language) override;
+
 protected:
 
 	virtual void BeginPlay() override;

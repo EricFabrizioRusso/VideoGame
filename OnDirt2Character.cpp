@@ -46,6 +46,16 @@
 #include "Components/PointLightComponent.h"
 #include "SaveGameCheckPoint.h"
 #include "CheckPoint.h"
+#include "AmmoItem.h"
+#include "Math/UnrealMathUtility.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "PauseMenuWidget.h"
+#include "AccessLevelTriggerActor.h"
+
+
+//Sound
+#include "Sound/SoundCue.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -116,10 +126,17 @@ AOnDirt2Character::AOnDirt2Character()
 	bAimingMeleeGun = false;
 	bIsTakingDamage = false;
 	ResetMeleeDamage = false;
-
+	bIsReloading = false;
 	//LookUpDown
 	bIsAimingUp = false;
 	bIsAimingDown = false;
+
+	//Language=
+	Language = false;
+
+
+	//FirstP
+	FirstPersonActivate = false;
 
 	//Stats
 	Life = 100;
@@ -145,7 +162,7 @@ void AOnDirt2Character::BeginPlay()
 
 	if (PauseMenuClass)
 	{
-		PauseMenu = CreateWidget<UUserWidget>(GetWorld(), PauseMenuClass);
+		PauseMenu = CreateWidget<UPauseMenuWidget>(GetWorld(), PauseMenuClass);
 	}
 	if (OptionsMenuClass) {
 
@@ -155,6 +172,52 @@ void AOnDirt2Character::BeginPlay()
 
 		InventoryHUDWidget = CreateWidget<UInventoryHUDWidget>(GetWorld(), InventoryHUDWidgetClass);
 
+	}
+
+	// Buscar si el personaje ya está dentro de un volumen de cámara fija
+	TArray<AActor*> OverlappingActors;
+	GetOverlappingActors(OverlappingActors, AFixedCamera::StaticClass());
+
+	for (AActor* Actor : OverlappingActors)
+	{
+		if (Actor->IsA(AFixedCamera::StaticClass()))
+		{
+			FixedCameraActor = Cast<AFixedCamera>(Actor);
+			bUsingFixedCamera = true;
+
+			// Cambiar a la cámara fija inmediatamente
+			APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+			if (PlayerController)
+			{
+				PlayerController->SetViewTarget(FixedCameraActor);
+			}
+
+			UE_LOG(LogTemp, Warning, TEXT("Cámara fija activada en BeginPlay con %s"), *FixedCameraActor->GetName());
+			break; // Solo tomar la primera cámara encontrada
+		}
+	}
+
+
+
+	//Language
+	FString SavedLanguage;
+	if (GConfig->GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("SelectedLanguage"),
+		SavedLanguage, GGameUserSettingsIni))
+	{
+		if (SavedLanguage == "Spanish") {
+
+			Language= true;
+		}
+		else {
+
+			Language = false;
+
+		}
+
+	}
+	else
+	{
+		Language = false;
 	}
 
 
@@ -220,10 +283,10 @@ void AOnDirt2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Look);
 
 		//Sprint
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Sprinting);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Sprinting); //Shift
 
 		//Crouch
-		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Crouching);
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Crouching); //C
 
 		//Grab
 		EnhancedInputComponent->BindAction(GrabAction, ETriggerEvent::Started, this, &AOnDirt2Character::PickUpHandle);
@@ -241,6 +304,12 @@ void AOnDirt2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EnhancedInputComponent->BindAction(AimingDownAction, ETriggerEvent::Ongoing, this, &AOnDirt2Character::AimingDown);
 		EnhancedInputComponent->BindAction(AimingDownAction, ETriggerEvent::Canceled, this, &AOnDirt2Character::CancelLookDown);
 
+		//Reload
+		EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::ReloadWeapon); //R
+
+		//FirstPersonView
+		EnhancedInputComponent->BindAction(FirstPersonAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::SetFirstPerson); //V
+
 		//Menu Pause
 		EnhancedInputComponent->BindAction(MenuPause, ETriggerEvent::Triggered, this, &AOnDirt2Character::MenuPauseExec);
 
@@ -250,6 +319,8 @@ void AOnDirt2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 		//Restart
 		EnhancedInputComponent->BindAction(RestartAction, ETriggerEvent::Triggered, this, &AOnDirt2Character::Respawn);
+
+		
 
 
 
@@ -266,7 +337,7 @@ void AOnDirt2Character::Move(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	if (bIsDie || bIsHit) return;
+	if (bIsDie || bIsHit || bIsReloading || FirstPersonActivate) return;
 
 	if (Controller != nullptr)
 	{
@@ -415,11 +486,28 @@ void AOnDirt2Character::ThrowOBJ() {
 		if (bEquipedGun && bAimingPistol) {
 
 			
+			if (HeldPistol->Ammunation != 0) {
 
-			PerformGunTrace();
-			UE_LOG(LogTemp, Warning, TEXT("Dispara dispara"));
-			bShootingPistol = true;
-			GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetShootingFlag, 1.2f, false);
+			
+
+				HeldPistol->Ammunation--;
+				PerformGunTrace();
+				UE_LOG(LogTemp, Warning, TEXT("Dispara dispara"));
+				bShootingPistol = true;
+
+
+				GetWorld()->GetTimerManager().SetTimer(ThrowTimerHandle, this, &AOnDirt2Character::ResetShootingFlag, 1.f, false);
+
+			}
+			else {
+
+
+				UE_LOG(LogTemp, Warning, TEXT("No Ammo"));
+
+				
+
+			}
+
 		}
 
 	}
@@ -456,6 +544,8 @@ void AOnDirt2Character::ThrowOBJ() {
 void AOnDirt2Character::ResetShootingFlag()
 {
 	bShootingPistol = false; 
+
+
 }
 
 void AOnDirt2Character::ResetBatFlag()
@@ -510,6 +600,8 @@ void  AOnDirt2Character::Aiming() {
 
 	if (bEquipedGun && !bIsCrouched) {
 
+		if (FirstPersonActivate) return;
+
 		if (!bIsTakingDamage) {
 
 			bAimingPistol = true;
@@ -528,6 +620,8 @@ void  AOnDirt2Character::Aiming() {
 	}
 
 	if (bEquipedMeleeGun && !bIsCrouched) {
+
+		if (FirstPersonActivate) return;
 
 		if (!bIsTakingDamage) {
 
@@ -603,16 +697,142 @@ void AOnDirt2Character::AimingDown() {
 }
 void AOnDirt2Character::CancelLookUp() {
 
-	UE_LOG(LogTemp, Warning, TEXT("Deja de Apuntar Arriba"));
+	//UE_LOG(LogTemp, Warning, TEXT("Deja de Apuntar Arriba"));
 	bIsAimingUp = false;
 
 }
 void AOnDirt2Character::CancelLookDown() {
 
-	UE_LOG(LogTemp, Warning, TEXT("Deja de Apuntar Abajo"));
+	//UE_LOG(LogTemp, Warning, TEXT("Deja de Apuntar Abajo"));
 	bIsAimingDown = false;
 
 }
+
+void AOnDirt2Character::ReloadWeapon() {
+
+	if (!bAimingPistol) return;
+
+
+
+	if (bEquipedGun){
+
+		if (HeldPistolAmmo != nullptr) {
+
+			int32 MaxClipSize = 5;
+			int32 AmmoNeeded = MaxClipSize - HeldPistol->Ammunation; // Balas necesarias
+
+			if (HeldPistolAmmo->ItemData.Quantity > 0) // Verifica que haya munición disponible
+			{
+				int32 AmmoToReload = FMath::Min(AmmoNeeded, HeldPistolAmmo->ItemData.Quantity); // Cantidad real de balas a recargar
+
+				// Recargar balas
+				HeldPistol->Ammunation += AmmoToReload;
+				HeldPistolAmmo->ItemData.Quantity -= AmmoToReload;
+
+				UE_LOG(LogTemp, Warning, TEXT("Recargado: %d balas. Munición restante: %d"), AmmoToReload, HeldPistolAmmo->ItemData.Quantity);
+
+
+				// Si la munición llega a 0, eliminarla del inventario
+
+
+
+
+
+			}
+			else
+			{
+
+
+				if (HeldPistolAmmo->ItemData.Quantity <= 0) {
+
+
+					if (InventoryComponent) {
+
+						for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
+						{
+							if (InventoryComponent->Inventory[i].ItemName == "Pistol ammo" || InventoryComponent->Inventory[i].ItemName == "Municion de pistola")
+							{
+								InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+								HeldPistolAmmo->RemoveFromRoot();
+								HeldPistolAmmo->Destroy();
+								HeldPistolAmmo = nullptr;
+								UE_LOG(LogTemp, Warning, TEXT("Item Eliminado"));
+							}
+
+						}
+
+
+					}
+
+				}
+
+
+
+
+
+				UE_LOG(LogTemp, Warning, TEXT("No hay balas suficientes para recargar."));
+			}
+
+
+
+
+			
+
+			     
+		}
+		else {
+
+			UE_LOG(LogTemp, Warning, TEXT("HeldPistolAmmo es nulo"));
+
+		}
+
+	}
+	
+
+
+
+	UE_LOG(LogTemp, Warning, TEXT("Reloading Weapon"));
+	bIsReloading = false;
+
+}
+void AOnDirt2Character::SetFirstPerson() {
+
+	UE_LOG(LogTemp, Warning, TEXT("Presionó la tecla V"));
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PlayerController) return;
+
+
+	if (FirstPersonActivate) {
+
+		FRotator YawRotation;
+		if (PlayerController)
+		{
+			PlayerController->SetViewTarget(FixedCameraActor);
+		}
+
+		FirstPersonActivate = false;
+
+
+	}else {
+
+	
+		if (PlayerController)
+		{
+			PlayerController->SetViewTarget(this);
+		}
+
+			FRotator YawRotation;
+		FirstPersonActivate = true;
+
+
+	}
+
+	
+
+}
+
+
 
 void AOnDirt2Character::StopAiming()
 {
@@ -907,6 +1127,40 @@ void AOnDirt2Character::GrabThrowOBJ()
 
 	}
 
+	if (OverlappingPistolAmmo && OverlappingPistolAmmo->bCanBeGrabbed) {
+
+		HeldPistolAmmo = OverlappingPistolAmmo;
+
+
+		if (PickUpItemClass)
+		{
+			// Crear el widget y castear al tipo personalizado
+			UUserWidget* WidgetPickUp = CreateWidget<UUserWidget>(GetWorld(), PickUpItemClass);
+			PickUpItemWidget = Cast<UPickUpItemWidget>(WidgetPickUp);
+
+			if (PickUpItemWidget)
+			{
+				PickUpItemWidget->SetItemName(HeldPistolAmmo->ItemData.ItemName.ToString());
+
+
+				PickUpItemWidget->AddToViewport();
+				GetWorld()->GetFirstPlayerController()->SetPause(true);
+				GetWorld()->GetFirstPlayerController()->bShowMouseCursor = true;
+				UE_LOG(LogTemp, Log, TEXT("Objecto añadido"));
+			}
+		}
+
+
+
+
+
+
+
+
+	}
+
+
+
 	if (OverlappingEnvironment && OverlappingEnvironment->bCanBeGrabbed) {
 
 		if (!EnvironmentWidget) {
@@ -1008,6 +1262,122 @@ void AOnDirt2Character::GrabThrowOBJ()
 		UE_LOG(LogTemp, Warning, TEXT("No hay un objeto válido para agarrar"));
 	}
 
+	if (OverlappingAccessToLevel && OverlappingAccessToLevel->bIsOverlaped) {
+
+
+		if (OverlappingAccessToLevel->bIsLocked) {
+
+
+			for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
+			{
+				if (InventoryComponent->Inventory[i].ItemName == OverlappingAccessToLevel->AccessDoor)
+				{
+					InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+					HeldMeleeGunItem->RemoveFromRoot();
+					HeldMeleeGunItem->Destroy();
+					HeldMeleeGunItem = nullptr;
+					UE_LOG(LogTemp, Warning, TEXT("Item Eliminado"));
+
+
+
+					if (!NotificationWidget) {
+
+						NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
+
+						UE_LOG(LogTemp, Error, TEXT("Se Crea Noti"));
+
+
+					}
+
+					if (NotificationWidget && !NotificationWidget->IsInViewport()) {
+
+						if (Language) {
+
+							
+
+
+							NotificationWidget->DescriptionNotification->SetText(FText::FromString("Desbloqueado"));
+			
+							
+						
+						}
+						else {
+
+
+							NotificationWidget->DescriptionNotification->SetText(FText::FromString("Unlock"));
+							
+
+						}
+
+						NotificationWidget->AddToViewport();
+						UE_LOG(LogTemp, Error, TEXT("Se añade noti"));
+						GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
+						
+						OverlappingAccessToLevel->bIsLocked = false;
+						return;
+					}
+
+
+
+
+
+				}
+
+			}
+
+
+			if (!NotificationWidget) {
+
+				NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
+
+				UE_LOG(LogTemp, Error, TEXT("Se Crea Noti"));
+
+
+			}
+
+			if (NotificationWidget && !NotificationWidget->IsInViewport()) {
+
+
+				if (Language) {
+
+					NotificationWidget->DescriptionNotification->SetText(FText::FromString("Cerrado"));
+
+				}
+				else {
+
+					NotificationWidget->DescriptionNotification->SetText(FText::FromString("Lock"));
+
+				}
+			
+
+				NotificationWidget->AddToViewport();
+				UE_LOG(LogTemp, Error, TEXT("Se añade noti"));
+				GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
+
+				
+			}
+
+
+
+
+
+
+
+
+		}
+		else {
+
+			OverlappingAccessToLevel->ChangeLevel();
+
+
+		}
+
+
+
+
+	}
+
+
 
 
 	
@@ -1024,8 +1394,9 @@ void AOnDirt2Character::SetToRead(bool Value) {
 
 			if (ReadNoteClass) {
 
-				UUserWidget* WidgetReadNote = CreateWidget<UUserWidget>(GetWorld(), ReadNoteClass);
-				ReadNoteWidget = Cast<UNotesToReadWidget>(WidgetReadNote);
+				//UUserWidget* WidgetReadNote = CreateWidget<UUserWidget>(GetWorld(), ReadNoteClass);
+				//ReadNoteWidget = CreateWidget<UNotesToReadWidget>(GetWorld(), ReadNoteClass);
+				//ReadNoteWidget = Cast<UNotesToReadWidget>(WidgetReadNote);
 
 				PickUpItemWidget->RemoveFromParent();
 				ReadNoteWidget = CreateWidget<UNotesToReadWidget>(GetWorld(), ReadNoteClass);
@@ -1045,7 +1416,7 @@ void AOnDirt2Character::SetToRead(bool Value) {
 			//HeldHealth->SetActorHiddenInGame(true);
 			//HeldHealth->SetActorEnableCollision(false);
 			//HeldHealth->SetActorTickEnabled(false);
-			HeldHealth = nullptr;
+			OverlappingHealthItem = nullptr;
 			GetWorld()->GetFirstPlayerController()->SetPause(false);
 			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
 		}
@@ -1055,7 +1426,7 @@ void AOnDirt2Character::SetToRead(bool Value) {
 			InventoryComponent->PickUpItem(HeldMeleeGunItem);
 
 			HeldMeleeGunItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-			HeldMeleeGunItem->SetActorEnableCollision(false); // Reactivar la colisión si es necesario
+			HeldMeleeGunItem->SetActorEnableCollision(true); // Reactivar la colisión si es necesario
 			HeldMeleeGunItem->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
 			HeldMeleeGunItem->SetActorTickEnabled(false);
 			OverlappingMeleeGunItem = nullptr;
@@ -1089,13 +1460,63 @@ void AOnDirt2Character::SetToRead(bool Value) {
 			UE_LOG(LogTemp, Warning, TEXT("Agarra pistola"));
 		}
 
+		if (OverlappingPistolAmmo) {
+
+
+			InventoryComponent->PickUpItem(HeldPistolAmmo);
+			HeldPistolAmmo->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			HeldPistolAmmo->SetActorEnableCollision(false); // Reactivar la colisión si es necesario
+			HeldPistolAmmo->SetActorHiddenInGame(true);   // Ocultar el arma en el mundo
+			HeldPistolAmmo->SetActorTickEnabled(false);
+			OverlappingPistolAmmo = nullptr;
+			
+
+			HeldPistolAmmo->AddToRoot();
+
+			GetWorld()->GetFirstPlayerController()->SetPause(false);
+			GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
+
+			UE_LOG(LogTemp, Warning, TEXT("Agarra municion"));
+
+
+		}
+
 	}
 	else {
 
-		//HeldNote = nullptr;
-		//HeldHealth = nullptr;
-		//HeldPistol = nullptr;
-		//HeldMeleeGunItem = nullptr;
+
+		if (OverlappingPistolItem) {
+
+
+			if (HeldPistol) {
+
+				HeldPistol = nullptr;
+			}
+
+		}
+
+		if (OverlappingMeleeGunItem) {
+			
+
+			if (HeldMeleeGunItem) {
+
+				HeldMeleeGunItem = nullptr;
+
+			}
+
+		}
+		
+		if (OverlappingHealthItem) {
+
+
+			if (HeldHealth) {
+
+				HeldHealth = nullptr;
+
+			}
+
+		}
+
 
 	}
 
@@ -1405,6 +1826,22 @@ void AOnDirt2Character::NotifyActorBeginOverlap(AActor* OtherActor)
 
 	}
 
+	if (OtherActor->IsA(AAmmoItem::StaticClass()))
+	{
+
+		OverlappingPistolAmmo = Cast<AAmmoItem>(OtherActor);
+
+
+	}
+
+	if (OtherActor->IsA(AAccessLevelTriggerActor::StaticClass()))
+	{
+
+		OverlappingAccessToLevel = Cast<AAccessLevelTriggerActor>(OtherActor);
+
+
+	}
+
 
 }
 
@@ -1447,6 +1884,13 @@ void AOnDirt2Character::NotifyActorEndOverlap(AActor* OtherActor)
 	if (HeldPistol == nullptr) {
 
 		OverlappingPistolItem = nullptr;
+
+		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP Gun"));
+	}
+
+	if (HeldPistolAmmo == nullptr) {
+
+		OverlappingPistolAmmo = nullptr;
 
 		//UE_LOG(LogTemp, Warning, TEXT("FIN OVERLAP Gun"));
 	}
@@ -1500,6 +1944,20 @@ bool AOnDirt2Character::GetShootingCrouch() const {
 	return bIsShootingCrouch;
 
 }
+
+void AOnDirt2Character::SetReloadAnimation(bool Value) {
+
+
+	bIsReloading = Value;
+
+}
+
+bool AOnDirt2Character::GetReloadAnimation() const {
+
+	return bIsReloading;
+
+}
+
 
 
 //Looking UP DOWN
@@ -1783,7 +2241,8 @@ void AOnDirt2Character::ShowInventory()
 
 					}*/
 			}
-		
+
+			InventoryComponent->UpdateItemsLanguage();
 
 			// Obtener los nombres del inventario desde el componente
 			TArray<FInventoryItemData> Items = InventoryComponent->GetInventoryItems();
@@ -1801,7 +2260,7 @@ void  AOnDirt2Character::SetUseItem() {
 
 
 
-	if (ItemName == "Gun") {
+	if (ItemName == "Pistol" || ItemName == "Pistola") {
 
 		if (bEquipedMeleeGun) {
 
@@ -1883,19 +2342,47 @@ void  AOnDirt2Character::SetUseItem() {
 
 			//ItemsOptionsWidget->UpdateText(false);
 			UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
+
+
+			if (Language) {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Desequipar"));
+			}
+			else {
+
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("UnEquip"));
+
+			}
 			
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
 		}
 		else {
 
+			if (Language) {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equipar"));
+
+			}
+			else {
+
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equip"));
+
+			}
 
 			UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
 
 		}
 
 
 
+
+	}
+
+	if (ItemName == "Pistol ammo" || ItemName == "Municion de pistola") {
+
+		UE_LOG(LogTemp, Error, TEXT("No se puede usar este item"));
+		return;
 
 	}
 
@@ -1977,13 +2464,32 @@ void  AOnDirt2Character::SetUseItem() {
 			//ItemsOptionsWidget->UpdateText(false);
 			UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
 
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
+			if (Language) {
+
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Desequipar"));
+			}
+			else {
+
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("UnEquip"));
+
+			}
+
 		}
 		else {
 
+			if (Language) {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equipar"));
+			}
+			else {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equip"));
+
+			}
 
 			UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
 
 		}
 
@@ -1996,7 +2502,7 @@ void  AOnDirt2Character::SetUseItem() {
 
 	//ItemsUso
 
-	if (ItemName == "Healthy Drink") {
+	if (ItemName == "Healthy Drink" || ItemName == "Bebida saludable") {
 
 
 		for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
@@ -2038,7 +2544,7 @@ void  AOnDirt2Character::SetUseItem() {
 		}
 
 	}
-	else if (ItemName == "Key") {
+	else if (ItemName == "Key" || ItemName == "Llave") {
 
 
 		UE_LOG(LogTemp, Warning, TEXT("No puedes usar la llave aqui"));
@@ -2071,7 +2577,7 @@ void  AOnDirt2Character::SetDropItem() {
 
 
 
-	if (ItemName == "Gun") {
+	if (ItemName == "Pistol" || ItemName == "Pistola") {
 
 		if (!NotificationWidget){
 
@@ -2084,8 +2590,20 @@ void  AOnDirt2Character::SetDropItem() {
 
 		if (NotificationWidget && !NotificationWidget->IsInViewport()) {
 
-			NotificationWidget->DescriptionNotification->SetText(FText::FromString("Can't Drop Item"));
-			NotificationWidget->AddToViewport();
+
+
+			if (Language) {
+
+				NotificationWidget->DescriptionNotification->SetText(FText::FromString("No puedes tirar este item"));
+			
+			}
+			else {
+
+				NotificationWidget->DescriptionNotification->SetText(FText::FromString("Can't Drop this Item"));
+
+			}
+
+			NotificationWidget->AddToViewport();	
 			UE_LOG(LogTemp, Error, TEXT("Se añade noti"));
 			GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
 
@@ -2096,7 +2614,7 @@ void  AOnDirt2Character::SetDropItem() {
 
 	}
 
-	if (ItemName == "Bat") {
+	if (ItemName == "Bat" || ItemName == "Bate") {
 
 		//Tirar Melee weapon
 
@@ -2135,8 +2653,49 @@ void  AOnDirt2Character::SetDropItem() {
 
 	}
 
+	if (ItemName == "Pistol ammo" || ItemName == "Municion de pistola") {
 
-	if (ItemName == "Healthy Drink") {
+
+
+		for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
+		{
+			if (InventoryComponent->Inventory[i].ItemName == ItemName)
+			{
+				InventoryComponent->Inventory.RemoveAt(i); // Eliminar el ítem del array
+				HeldPistolAmmo->RemoveFromRoot();
+				HeldPistolAmmo->Destroy();
+				HeldPistolAmmo = nullptr;
+				UE_LOG(LogTemp, Warning, TEXT("Item Eliminado"));
+			}
+
+		}
+
+
+
+
+		if (InventoryHUDWidget)
+		{
+			InventoryHUDWidget->PopulateInventory(InventoryComponent->Inventory);
+		}
+
+		if (DetailsItemWidget && DetailsItemWidget->IsInViewport()) {
+
+			DetailsItemWidget->RemoveFromParent();
+			//UE_LOG(LogTemp, Error, TEXT("DetailsWidget Quedo en el viewport"));
+
+		}
+		if (ItemsOptionsWidget && ItemsOptionsWidget->IsInViewport()) {
+
+			ItemsOptionsWidget->RemoveFromParent();
+
+		}
+
+		
+
+	}
+
+
+	if (ItemName == "Healthy Drink" || ItemName == "Bebida saludable") {
 
 
 		for (int32 i = 0; i < InventoryComponent->Inventory.Num(); i++)
@@ -2169,7 +2728,7 @@ void  AOnDirt2Character::SetDropItem() {
 		return;
 
 	}
-	else if (ItemName == "Key") {
+	else if (ItemName == "Key" || ItemName == "Llave") {
 
 
 		UE_LOG(LogTemp, Error, TEXT("No puedes eliminar este item"));
@@ -2186,7 +2745,16 @@ void  AOnDirt2Character::SetDropItem() {
 
 		if (NotificationWidget && !NotificationWidget->IsInViewport()) {
 
-			NotificationWidget->DescriptionNotification->SetText(FText::FromString("Can't Drop this Item"));
+			if (Language) {
+
+				NotificationWidget->DescriptionNotification->SetText(FText::FromString("No puedes tirar este item"));
+			}
+			else {
+
+				NotificationWidget->DescriptionNotification->SetText(FText::FromString("Can't Drop this Item"));
+
+			}
+
 			NotificationWidget->AddToViewport();
 			UE_LOG(LogTemp, Error, TEXT("Se añade noti"));
 			GetWorld()->GetTimerManager().SetTimer(NotiTimerHandle, this, &AOnDirt2Character::RemoveWidgets, 1.5f, false);
@@ -2264,47 +2832,113 @@ void AOnDirt2Character::SetText(const FString& Name, const FString& Desc) {
 
 
 
-	if (ItemName == "Gun") {
+	if (ItemName == "Pistol" || ItemName == "Pistola") {
 
 
 		if (bEquipedGun) {
 
+			if (Language) {
 
-			//ItemsOptionsWidget->UpdateText(false);
-			UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Desequipar"));
+			}
+			else {
+
+				UE_LOG(LogTemp, Error, TEXT("UnEquip"), *ItemName);
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("UnEquip"));
+
+			}
+			
 		}
 		else {
 
+			if (Language) {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equipar"));
+
+			}
+			else {
+
+				UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equip"));
+
+
+			}
 			
-			UE_LOG(LogTemp, Error, TEXT("Equip"), *ItemName);
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
 			
 		}
 
 
 	}
 
-	if (ItemName == "Bat") {
+	if (ItemName == "Bat" || ItemName == "Bate") {
 
 
 		if (bEquipedMeleeGun) {
 
+			if (Language) {
 
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("UnEquip"));
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Desequipar"));
+			}
+			else {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("UnEquip"));
+
+			}
+
+
 		}
 		else {
 
-			ItemsOptionsWidget->EquipText->SetText(FText::FromString("Equip"));
+			if (Language) {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equipar"));
+			}
+			else {
+
+				ItemsOptionsWidget->UseText->SetText(FText::FromString("Equip"));
+
+			}
+
 
 		}
 
 
 	}
 
-	if (ItemName == "Healthy Drink") {
+	if (ItemName == "Pistol ammo" || ItemName == "Municion de pistola") {
 
-		ItemsOptionsWidget->EquipText->SetText(FText::FromString("Use"));
+
+		if (Language) {
+
+			ItemsOptionsWidget->UseText->SetText(FText::FromString("Usar"));
+
+		}
+		else {
+
+
+			ItemsOptionsWidget->UseText->SetText(FText::FromString("Use"));
+
+		}
+		
+
+	}
+
+
+	if (ItemName == "Healthy Drink" || ItemName == "Bebida saludable") {
+
+
+		if (Language) {
+
+			ItemsOptionsWidget->UseText->SetText(FText::FromString("Usar"));
+
+		}
+		else {
+
+
+			ItemsOptionsWidget->UseText->SetText(FText::FromString("Use"));
+
+		}
+
 
 	}
 
@@ -2340,6 +2974,189 @@ void AOnDirt2Character::SetText(const FString& Name, const FString& Desc) {
 
 }
 
+void AOnDirt2Character::SelectLanguage(bool Value) {
+
+	Language = Value;
+
+}
+
+//Sound Sistem
+/*void AOnDirt2Character::PlayFootstepSound()
+{
+	if (!HasAuthority()) return;
+
+	FVector Start = GetActorLocation();
+	FVector End = Start - FVector(0, 0, 50); // Línea de rastreo corta hacia abajo
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams))
+	{
+		UPhysicalMaterial* PhysMaterial = HitResult.PhysMaterial.Get();
+		if (PhysMaterial)
+		{
+			USoundCue* FootstepSound = GetFootstepSoundForMaterial(PhysMaterial);
+			if (FootstepSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(this, FootstepSound, GetActorLocation());
+			}
+		}
+	}
+}*/
+
+void AOnDirt2Character::PlayFootstepSound()
+{
+
+	/*if (!HasAuthority()) return;
+
+	FVector Start = GetActorLocation();
+	FVector End = Start - FVector(0, 0, 200); // Aumentamos la distancia
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	// Dibujar línea para depuración
+	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 1.0f, 0, 2.0f);
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_WorldStatic, QueryParams))
+	{
+		UPhysicalMaterial* PhysMaterial = HitResult.PhysMaterial.Get();
+		USoundCue* FootstepSound = DefaultFootstepSound; // Por defecto, usar sonido genérico
+
+		if (PhysMaterial)
+		{
+			FootstepSound = GetFootstepSoundForMaterial(PhysMaterial);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No se detectó material físico en el LineTrace, usando sonido por defecto."));
+		}
+
+		// Si hay sonido, reproducirlo
+		if (FootstepSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, FootstepSound, GetActorLocation());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("El LineTrace no detectó ningún impacto"));
+	}*/
+
+
+
+	FVector Start = GetActorLocation(); // Obtén la ubicación del personaje
+	FVector End = Start - FVector(0, 0, 500); // Rayo hacia abajo para detectar la superficie
+
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+
+	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 1.0f, 0, 1.0f);
+
+
+	// Realiza un rayo hacia abajo para detectar la superficie
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, CollisionParams))
+	{
+		if (HitResult.PhysMaterial.IsValid())  // Verificamos si hay un material físico válido
+		{
+			UPhysicalMaterial* SurfaceMaterial = HitResult.PhysMaterial.Get(); // Desreferenciar el TWeakObjectPtr
+
+			if (SurfaceMaterial)
+			{
+				// Imprime el nombre del material físico para depuración
+				FString MaterialName = SurfaceMaterial->GetFName().ToString();
+				UE_LOG(LogTemp, Warning, TEXT("Material detectado: %s"), *MaterialName);
+
+				// Comparar el nombre del material físico con los tipos de superficies
+				if (MaterialName.Contains(TEXT("Dirt")))
+				{
+					UGameplayStatics::PlaySoundAtLocation(this, FootstepDirtSound, GetActorLocation());
+					UE_LOG(LogTemp, Warning, TEXT("Piso Dirt"));
+				}
+				else if (MaterialName.Contains(TEXT("Grass")))
+				{
+					UGameplayStatics::PlaySoundAtLocation(this, FootstepGrassSound, GetActorLocation());
+					UE_LOG(LogTemp, Warning, TEXT("Piso Grass"));
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Material no reconocido: %s"), *MaterialName);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("El material físico está presente pero es nulo"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No se obtiene material físico en HitResult"));
+		}
+
+	}
+
+}
+
+
+
+
+USoundCue* AOnDirt2Character::GetFootstepSoundForMaterial(UPhysicalMaterial* PhysMaterial)
+{
+	//if (!PhysMaterial) return nullptr;
+
+	
+	// Si no hay material físico, usar sonido por defecto
+	/*if (!PhysMaterial)
+	{
+		return DefaultFootstepSound;
+	}
+
+	// Verificar el tipo de material físico
+	if (PhysMaterial == PM_Dirt)
+	{
+		return FootstepDirtSound;
+	}
+
+	if (PhysMaterial == PM_Grass)
+	{
+		return FootstepGrassSound;
+	}
+
+	// Si el material no coincide con ninguno, retornar sonido por defecto
+	return DefaultFootstepSound;*/
+
+
+
+	if (!PhysMaterial)
+	{
+		return DefaultFootstepSound;
+	}
+
+	// Obtener el tipo de superficie
+	EPhysicalSurface SurfaceType = UPhysicalMaterial::DetermineSurfaceType(PhysMaterial);
+
+	switch (SurfaceType)
+	{
+	case SurfaceType1:
+		return FootstepDirtSound;
+	case SurfaceType2:
+		return FootstepGrassSound;
+	default:
+		return DefaultFootstepSound;
+	}
+
+
+}
+
+
+
+
+
+
+
 void AOnDirt2Character::EndPlay(const EEndPlayReason::Type EndPlayReason) {
 	Super::EndPlay(EndPlayReason);
 
@@ -2355,6 +3172,14 @@ void AOnDirt2Character::EndPlay(const EEndPlayReason::Type EndPlayReason) {
 		HeldMeleeGunItem->RemoveFromRoot();
 		HeldMeleeGunItem = nullptr;
 	}
+
+	if (HeldPistolAmmo) {
+
+		HeldPistolAmmo->RemoveFromRoot();
+		HeldPistolAmmo = nullptr;
+	}
+
+
 
 
 	// Nombre del slot que deseas borrar
@@ -2374,6 +3199,9 @@ void AOnDirt2Character::EndPlay(const EEndPlayReason::Type EndPlayReason) {
 
 
 	UE_LOG(LogTemp, Warning, TEXT("EndPlay llamado. Se ha liberado HeldPistol."));
+
+
+
 }
 
 

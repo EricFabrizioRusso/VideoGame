@@ -25,6 +25,18 @@ void UItemsOptionsWidget::NativeConstruct() {
     }
 
 
+
+	FString SavedLanguage;
+	if (GConfig->GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("SelectedLanguage"),
+		SavedLanguage, GGameUserSettingsIni))
+	{
+		UpdateTexts(SavedLanguage);
+	}
+	else
+	{
+		UpdateTexts("English"); // Por defecto
+	}
+
    
 }
 
@@ -37,6 +49,37 @@ void UItemsOptionsWidget::OnUseClicked() {
 void UItemsOptionsWidget::OnDropClicked() {
 
     UE_LOG(LogTemp, Warning, TEXT("Entra a OnDropClicked"));
+
+}
+
+
+
+
+void UItemsOptionsWidget::UpdateTexts(FString Language) {
+
+
+
+	if (Language == "Spanish") {
+
+		UseText->SetText(FText::FromString("Usar"));
+		DropText->SetText(FText::FromString("Tirar"));
+		//EquipText->SetText(FText::FromString("Equipar"));
+
+
+
+
+	}
+	else {
+
+
+		UseText->SetText(FText::FromString("Use"));
+		DropText->SetText(FText::FromString("Drop"));
+		//EquipText->SetText(FText::FromString("Equip"));
+
+
+
+	}
+
 
 }
 

@@ -59,4 +59,33 @@ void AMeleeGunItem::OnMeshBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 }
 
 
+void AMeleeGunItem::UpdateTexts(FString Language) {
+
+
+
+    if (Language == "Spanish") {
+
+
+        ItemData.ItemName = "Bate";
+        ItemData.ItemDescription = "Arma cuerpo a cuerpo efectiva a corto alcance pero mas poderosa que un arma de fuego";
+
+
+    }
+    else {
+
+
+        ItemData.ItemName = "Bat";
+        ItemData.ItemDescription = "Melee weapon efective in short encounters but most powerful than fireguns";
+
+
+
+    }
+
+
+}
+
+
+
+
+
 
